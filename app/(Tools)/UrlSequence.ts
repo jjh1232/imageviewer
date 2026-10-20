@@ -6,7 +6,7 @@ import type { ImageItem } from "./UserImageManager";
  * 하나씩 열어보기는 힘들다. 주소 하나를 받아 **숫자마다** 범위를 정하게 한다.
  *
  *   주소를 조각낸다      "…/ep" [3] "/" [001] ".webp"
- *   사용자가 고른 숫자마다 from~to
+ *   사용자가 고른 숫자마다 값 (1..100 · 1,3,7 · X,Y — parseValues)
  *   왼쪽 숫자가 바깥 반복  ep3 의 001~100 → ep4 의 001~100 → …
  *
  * 회차마다 장수가 다르므로 안쪽(맨 오른쪽 고른 숫자)은 넉넉히 잡게 하고,
@@ -27,35 +27,113 @@ const CONCURRENCY = 6;
 /** 한 장을 기다리는 최대 시간. */
 const TIMEOUT_MS = 15000;
 
-/** 주소 조각. 글자이거나 숫자다. */
+/** 주소 조각. 바꿀 수 없는 글자, 숫자 칸, 알파벳 칸 중 하나다. */
 export type Piece =
     | { kind: "text"; text: string }
-    | { kind: "num"; text: string; pad: number };
+    | { kind: "num"; text: string; pad: number }
+    | { kind: "word"; text: string };
 
-/** 숫자 하나에 정한 범위. */
-export interface Span { from: number; to: number }
+/** 값 칸을 붙일 수 있는 조각인가. */
+export const isSlot = (p: Piece) => p.kind !== "text";
+
+/** 숫자 자리에 넣을 값. 숫자면 원래 자릿수를 지키고, 글자면 그대로 넣는다. */
+export type Value = number | string;
+
+/** 값 칸 하나를 읽은 결과. */
+export type Parsed = { ok: true; values: Value[] } | { ok: false; reason: string };
 
 /**
- * 주소를 글자·숫자 조각으로 나눈다. 숫자가 하나도 없으면 null.
- * 도메인(cdn2.site.com 같은)의 숫자는 바꿀 일이 없으니 글자로 둔다.
+ * 값 칸을 읽는다. 쉼표로 여러 개를 이어 쓸 수 있다.
+ *
+ *   7            한 장
+ *   1..239       범위 (1~239 도 된다). 거꾸로 쓰면 거꾸로 센다
+ *   1,3,7        골라서
+ *   1..10, 20    섞어서
+ *   a..f         알파벳 범위. ab..ef 면 ab, ac … az, ba … ef (엑셀 열 이름처럼 센다)
+ *   X, Y         글자 — 의상 코드처럼 숫자가 아닌 값도 넣을 수 있다
+ *
+ * 범위를 펼치기 전에 크기부터 본다. 1..1000000 을 배열로 만들지 않게.
+ */
+export function parseValues(text: string): Parsed {
+    const tokens = text.split(",").map((t) => t.trim()).filter(Boolean);
+    if (tokens.length === 0) return { ok: false, reason: "값을 넣으세요" };
+
+    const values: Value[] = [];
+    for (const token of tokens) {
+        const w = token.match(/^([a-z]+|[A-Z]+)\s*(?:\.\.|~)\s*([a-z]+|[A-Z]+)$/);
+        if (w) {
+            const upper = w[1] === w[1].toUpperCase();
+            if (upper !== (w[2] === w[2].toUpperCase())) return { ok: false, reason: "범위 양끝의 대소문자를 맞추세요" };
+            const from = wordIndex(w[1]), to = wordIndex(w[2]);
+            if (Math.abs(to - from) + 1 + values.length > MAX_COUNT) {
+                return { ok: false, reason: `한 번에 ${MAX_COUNT}장까지입니다` };
+            }
+            const step = from <= to ? 1 : -1;
+            for (let v = from; v !== to + step; v += step) values.push(indexWord(v, upper));
+            continue;
+        }
+
+        const m = token.match(/^(\d+)\s*(?:\.\.|~)\s*(\d+)$/);
+        if (!m) {
+            values.push(/^\d+$/.test(token) ? Number(token) : token);
+            continue;
+        }
+        const from = Number(m[1]), to = Number(m[2]);
+        if (Math.abs(to - from) + 1 + values.length > MAX_COUNT) {
+            return { ok: false, reason: `한 번에 ${MAX_COUNT}장까지입니다` };
+        }
+        const step = from <= to ? 1 : -1;
+        for (let v = from; v !== to + step; v += step) values.push(v);
+    }
+    return { ok: true, values };
+}
+
+/* 알파벳 ↔ 번호. a=1 … z=26, aa=27 … — 엑셀 열 이름과 같은 셈법이라
+   ab..ef 처럼 길이가 같으면 자리올림으로, a..zz 처럼 다르면 이어서 센다. */
+function wordIndex(word: string): number {
+    let n = 0;
+    for (const ch of word.toLowerCase()) n = n * 26 + (ch.charCodeAt(0) - 96);
+    return n;
+}
+function indexWord(n: number, upper: boolean): string {
+    let out = "";
+    while (n > 0) {
+        const r = (n - 1) % 26;
+        out = String.fromCharCode(97 + r) + out;
+        n = Math.floor((n - 1) / 26);
+    }
+    return upper ? out.toUpperCase() : out;
+}
+
+/** %EC%BA%90 같은 인코딩을 풀어둔다. 안 풀면 그 안의 글자·숫자가 전부 칸으로 쪼개진다. */
+function decode(url: string): string {
+    try { return decodeURI(url); } catch { return url; }
+}
+
+/**
+ * 주소를 조각낸다 — 경로·쿼리의 숫자 덩어리와 알파벳 덩어리가 칸이 된다.
+ * 칸이 하나도 없으면 null.
+ * 도메인(cdn2.site.com 같은)은 바꿀 일이 없으니 통째로 글자로 둔다.
  */
 export function splitUrl(raw: string): Piece[] | null {
-    const url = raw.trim();
+    const url = decode(raw.trim());
     const hostEnd = url.indexOf("/", url.indexOf("//") + 2);
     if (!/^https?:\/\//i.test(url) || hostEnd < 0) return null;
 
     const pieces: Piece[] = [{ kind: "text", text: url.slice(0, hostEnd) }];
     let last = hostEnd;
-    for (const m of url.slice(hostEnd).matchAll(/\d+/g)) {
+    for (const m of url.slice(hostEnd).matchAll(/\d+|[A-Za-z]+/g)) {
         const at = hostEnd + m.index!;
         if (at > last) pieces.push({ kind: "text", text: url.slice(last, at) });
-        const digits = m[0];
-        pieces.push({ kind: "num", text: digits, pad: digits.length > 1 && digits.startsWith("0") ? digits.length : 0 });
-        last = at + digits.length;
+        const t = m[0];
+        pieces.push(/\d/.test(t)
+            ? { kind: "num", text: t, pad: t.length > 1 && t.startsWith("0") ? t.length : 0 }
+            : { kind: "word", text: t });
+        last = at + t.length;
     }
     if (last < url.length) pieces.push({ kind: "text", text: url.slice(last) });
 
-    return pieces.some((p) => p.kind === "num") ? pieces : null;
+    return pieces.some(isSlot) ? pieces : null;
 }
 
 /** 처음에 켜 둘 숫자 — ? 앞(경로)의 마지막 숫자. 보통 파일 번호다. */
@@ -70,43 +148,39 @@ export function defaultPick(pieces: Piece[]): number {
     return pick >= 0 ? pick : pieces.findIndex((p) => p.kind === "num");
 }
 
-function rangeOf({ from, to }: Span): number[] {
-    const step = from <= to ? 1 : -1;
-    return Array.from({ length: Math.abs(to - from) + 1 }, (_, i) => from + i * step);
-}
-
-/** 범위를 정한 숫자들로 만들어질 장수. 주소를 실제로 만들기 전에 상한을 본다. */
-export function countOf(spans: Map<number, Span>): number {
+/** 값을 정한 숫자들로 만들어질 장수. 주소를 실제로 만들기 전에 상한을 본다. */
+export function countOf(vars: Map<number, Value[]>): number {
     let n = 1;
-    for (const s of spans.values()) n *= Math.abs(s.to - s.from) + 1;
+    for (const v of vars.values()) n *= v.length;
     return n;
 }
 
 /**
  * 주소를 만든다. 결과는 **그룹 목록** — 바깥 숫자 조합 하나가 한 그룹이고,
- * 그 안에 가장 안쪽 숫자의 범위만큼 주소가 들어 있다.
- * 범위를 안 정한 숫자는 원래 값 그대로 둔다.
+ * 그 안에 가장 안쪽 숫자의 값만큼 주소가 들어 있다.
+ * 값을 안 정한 숫자는 원래 값 그대로 둔다.
  */
-export function buildGroups(pieces: Piece[], spans: Map<number, Span>): string[][] {
-    const order = [...spans.keys()].sort((a, b) => a - b);   // 왼쪽이 바깥
-    if (order.length === 0 || countOf(spans) > MAX_COUNT) return [];
+export function buildGroups(pieces: Piece[], vars: Map<number, Value[]>): string[][] {
+    const order = [...vars.keys()].sort((a, b) => a - b);   // 왼쪽이 바깥
+    if (order.length === 0 || countOf(vars) > MAX_COUNT) return [];
 
     const inner = order.at(-1)!;
     const outer = order.slice(0, -1);
 
-    const render = (values: Map<number, number>) =>
+    const render = (chosen: Map<number, Value>) =>
         pieces.map((p, i) => {
-            if (p.kind === "text" || !values.has(i)) return p.text;
-            return String(values.get(i)).padStart(p.pad, "0");
+            if (p.kind === "text" || !chosen.has(i)) return p.text;
+            const v = chosen.get(i)!;
+            return typeof v === "number" && p.kind === "num" ? String(v).padStart(p.pad, "0") : String(v);
         }).join("");
 
     // 바깥 숫자들의 모든 조합 (왼쪽이 천천히 바뀐다)
-    let combos: Map<number, number>[] = [new Map()];
+    let combos: Map<number, Value>[] = [new Map()];
     for (const i of outer) {
-        combos = combos.flatMap((c) => rangeOf(spans.get(i)!).map((v) => new Map(c).set(i, v)));
+        combos = combos.flatMap((c) => vars.get(i)!.map((v) => new Map(c).set(i, v)));
     }
 
-    return combos.map((c) => rangeOf(spans.get(inner)!).map((v) => render(new Map(c).set(inner, v))));
+    return combos.map((c) => vars.get(inner)!.map((v) => render(new Map(c).set(inner, v))));
 }
 
 /** 실제로 그려지는지 본다. 404 나 그림이 아닌 응답이면 false. */

@@ -108,7 +108,7 @@ export default function LeftMain({
     if (images.length === 0) {
         return (
             <Wrapper>
-                <Empty>이미지가 없습니다.<br />위의 인풋으로 고르거나 여기에 끌어다 놓으세요.</Empty>
+                <Empty>이미지가 없습니다.<br />위의 「파일 열기」나 주소로 불러오거나<br />여기에 끌어다 놓으세요.</Empty>
             </Wrapper>
         )
     }

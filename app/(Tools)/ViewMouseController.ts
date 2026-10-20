@@ -18,6 +18,7 @@ export const Whellmove = (
   e: React.WheelEvent,
   setPage: React.Dispatch<React.SetStateAction<number>>,
   total: number,
+  step = 1,          // 두 장 펼침이면 2
 ) => {
   if (total <= 1) return;
 
@@ -31,8 +32,8 @@ export const Whellmove = (
 
   // 끝에서 멈춘다. 예전에는 마지막 장에서 첫 장으로 되감겨서,
   // 넘기다 보면 어디까지 봤는지 알 수 없었다.
-  const step = delta > 0 ? 1 : -1;
-  setPage(prev => Math.min(total - 1, Math.max(0, prev + step)));
+  const move = delta > 0 ? step : -step;
+  setPage(prev => Math.min(total - 1, Math.max(0, prev + move)));
 };
 
 export const WhellZoom = (e: React.WheelEvent) => {

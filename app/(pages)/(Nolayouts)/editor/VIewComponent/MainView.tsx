@@ -13,6 +13,7 @@ const Wrapper=styled.div`
     //border: 2px solid blue;
     display: flex;
     flex:1;
+    min-height: 0;              /* 위 막대 높이가 주소 줄에 따라 바뀐다. 남는 만큼만 차지한다 */
     //height: 100vh;
 `
 const SidebarWrapper=styled.div<{ $flexbasis: string; $iscollap: boolean }>`
@@ -24,10 +25,8 @@ const SidebarWrapper=styled.div<{ $flexbasis: string; $iscollap: boolean }>`
   max-width: ${({ $iscollap }) => ($iscollap ? "0px" : "50vw")};
  // overflow: hidden; // 접힐 때 내용 가리기
     
-    height: 91vh;
-    position: sticky;
+    height: 100%;
     z-index: 10;
-    top:34px;
     
     
 
@@ -85,10 +84,10 @@ const Styledicon=styled(FontAwesomeIcon)`
     height: 100px;
 `
 export default function MainView({
-    Currentnumber,setCurrentnumber,viewmode,scale,setScale}:
+    Currentnumber,setCurrentnumber,viewmode,scale,setScale,fit,onFitRatio}:
     {Currentnumber:number,setCurrentnumber:React.Dispatch<React.SetStateAction<number>>,
-        viewmode:string,scale:number,setScale:React.Dispatch<React.SetStateAction<number>>
-        
+        viewmode:string,scale:number,setScale:React.Dispatch<React.SetStateAction<number>>,
+        fit:boolean,onFitRatio:(r:number)=>void
     }
 ){
 
@@ -170,7 +169,7 @@ const handleMouseUp=useCallback(()=>{
 
         <MainWrapper >
             <MainViewer Currentnumber={Currentnumber} setCurrentnumber={setCurrentnumber} viewmode={viewmode}
-                        scale={scale} setScale={setScale}
+                        scale={scale} setScale={setScale} fit={fit} onFitRatio={onFitRatio}
             />
         </MainWrapper>
     </Wrapper>)

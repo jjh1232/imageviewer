@@ -1,6 +1,5 @@
 "use client"
 import styled from "styled-components"
-import LeftTop from "./SideComponent/LeftTop"
 import LeftMain from "./SideComponent/LeftMain"
 import React, { Dispatch, SetStateAction, useCallback } from "react"
 import { useImages } from "@/app/(Context)/ImageProvider"
@@ -37,9 +36,6 @@ export default function Leftsidebar({
         addImages(await inputimages(file));
     },[addImages,inputimages]) //이함수를 쓴다는걸 나타내는겸 또는 분기나조건마다 함수가 변경될수도있음
     return (<Wrapper onDragOver={handleDragover} onDrop={handlerDrop}>
-        {/*탑 이미지추가나 새로 */}   
-        
-          <LeftTop />
              {/*메인박스*/}   
             <LeftMain Currentnumber={Currentnumber} setCurrentnumber={setCurrentnumber}/>
     </Wrapper>)
