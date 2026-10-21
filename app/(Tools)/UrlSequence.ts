@@ -47,6 +47,7 @@ export type Parsed = { ok: true; values: Value[] } | { ok: false; reason: string
  *
  *   7            한 장
  *   1..239       범위 (1~239 도 된다). 거꾸로 쓰면 거꾸로 센다
+ *   001..100     앞에 0 을 붙이면 그 자릿수로 (001, 002 … 100)
  *   1,3,7        골라서
  *   1..10, 20    섞어서
  *   a..f         알파벳 범위. ab..ef 면 ab, ac … az, ba … ef (엑셀 열 이름처럼 센다)
@@ -75,15 +76,18 @@ export function parseValues(text: string): Parsed {
 
         const m = token.match(/^(\d+)\s*(?:\.\.|~)\s*(\d+)$/);
         if (!m) {
-            values.push(/^\d+$/.test(token) ? Number(token) : token);
+            // 007 처럼 0 으로 시작하면 글자 그대로 — 자릿수를 지킨다.
+            values.push(/^\d+$/.test(token) && !/^0\d/.test(token) ? Number(token) : token);
             continue;
         }
         const from = Number(m[1]), to = Number(m[2]);
         if (Math.abs(to - from) + 1 + values.length > MAX_COUNT) {
             return { ok: false, reason: `한 번에 ${MAX_COUNT}장까지입니다` };
         }
+        // 001..100 처럼 앞에 0 을 붙여 쓰면 그 자릿수로 채운다 (001, 002 … 100).
+        const pad = /^0\d/.test(m[1]) ? m[1].length : 0;
         const step = from <= to ? 1 : -1;
-        for (let v = from; v !== to + step; v += step) values.push(v);
+        for (let v = from; v !== to + step; v += step) values.push(pad ? String(v).padStart(pad, "0") : v);
     }
     return { ok: true, values };
 }
@@ -181,6 +185,39 @@ export function buildGroups(pieces: Piece[], vars: Map<number, Value[]>): string
     }
 
     return combos.map((c) => vars.get(inner)!.map((v) => render(new Map(c).set(inner, v))));
+}
+
+/* ── 템플릿 + 조건 ──────────────────────────────────────────────
+ *
+ *   https://ichio.org/MAHORA/JYH1/상황.webp
+ *   조건  상황 = 1..54, 71..85
+ *
+ * 조건의 「키워드」는 주소 안의 글자 그대로다. 그 자리를 값으로 바꿔 끼운다.
+ * 위의 조건이 바깥 반복 — 맨 아래 조건이 한 묶음 안에서 도는 번호다(buildGroups 와 같다).
+ * 키워드끼리 겹쳐도(ep 와 ep2) 한 번에 바꾸므로 바꿔 넣은 값을 다시 건드리지 않는다.
+ */
+export type Cond = { key: string; values: Value[] };
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export function countConds(conds: Cond[]): number {
+    return conds.reduce((n, c) => n * c.values.length, 1);
+}
+
+export function buildTemplateGroups(template: string, conds: Cond[]): string[][] {
+    if (conds.length === 0) return [[template]];
+    if (countConds(conds) > MAX_COUNT) return [];
+
+    const keys = [...new Set(conds.map((c) => c.key))].sort((a, b) => b.length - a.length);
+    const re = new RegExp(keys.map(escapeRe).join("|"), "g");
+    const render = (chosen: Map<string, string>) => template.replace(re, (k) => chosen.get(k) ?? k);
+
+    const inner = conds.at(-1)!;
+    let combos: Map<string, string>[] = [new Map()];
+    for (const c of conds.slice(0, -1)) {
+        combos = combos.flatMap((m) => c.values.map((v) => new Map(m).set(c.key, String(v))));
+    }
+    return combos.map((m) => inner.values.map((v) => render(new Map(m).set(inner.key, String(v)))));
 }
 
 /** 실제로 그려지는지 본다. 404 나 그림이 아닌 응답이면 false. */

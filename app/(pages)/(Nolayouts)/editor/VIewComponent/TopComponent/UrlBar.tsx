@@ -1,235 +1,291 @@
 "use client"
 
 import { useImages } from "@/app/(Context)/ImageProvider";
-import { buildGroups, countOf, defaultPick, isSlot, loadGroups, MAX_COUNT, parseValues, Piece, splitUrl, STOP_AFTER, Value } from "@/app/(Tools)/UrlSequence";
+import { buildTemplateGroups, Cond, countConds, loadGroups, MAX_COUNT, parseValues, STOP_AFTER } from "@/app/(Tools)/UrlSequence";
 import { useMemo, useState } from "react";
 import styled from "styled-components";
 
-/* ── 주소로 불러오기 ─────────────────────────────────────────
+/* ── 주소로 불러오기 — 바꿀 부분을 칸으로 ──────────────────────
  *
- *   [ https://…/ep3/001.webp                        ] [불러오기]
- *   …/ep [3] / [001] .webp     ep [ 3..7 ]   / [ 1..100 ]   5묶음 × 최대 100장
+ *   ┌ {1} ───────────┐ ┌ {2} ────────────────┐  [+ 바꿀 부분]
+ *   │ MAHORA/JYH1    │ │ 1..54, 71..85       │
+ *   └────────────────┘ └─────────────────────┘
+ *   주소  https://ichio.org/{1}/{2}.webp
+ *   69장 · 예: https://ichio.org/MAHORA/JYH1/1.webp                  [불러오기]
  *
- * 진짜 주소를 그대로 붙여넣고, 바꿀 숫자(나 알파벳 덩어리)를 누르면 값 칸이 생긴다.
- * 주소창을 여러 개로 나누지 않은 건 — 사용자가 주소를 직접 쪼개야 해서다.
- * 템플릿 문법을 따로 배울 필요가 없게 했다. 값 칸 문법은 parseValues 참고.
+ * 바뀌는 부분마다 칸을 하나씩 + 로 만든다. 칸은 「이름」 과 「값」 이다.
+ * 주소에는 바꿀 자리에 그 이름을 그대로 적는다 — 그 자리가 값으로 바뀐다.
+ *
+ * 이름은 새 칸마다 {1} {2} … 로 저절로 붙는다. 「캐릭터」 「page」 처럼 말로 지으면
+ * 주소 안의 다른 같은 글자까지 바뀔 수 있다(…/page/page1.webp). 중괄호 표시는 진짜 주소에
+ * 나올 일이 없어서 그런 사고가 없다. 원하면 고쳐 써도 된다.
+ * 값은 하나여도(MAHORA/JYH1 — / 가 들어가도 된다) 범위여도 된다
+ * (1..54 · 001..100 · abc~bcd · X,Y — parseValues).
+ * 주소에서 왼쪽에 있는 이름이 바깥 반복이다(캐릭터마다 1..54 를 돈다).
+ *
+ * 칸 이름 옆 「↓」 는 그 이름을 주소 칸의 커서 자리에 끼워 넣는다 — 손으로 안 쳐도 되게.
  */
 
 const Form = styled.form`
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    flex: 1;
+    gap: 10px;
     min-width: 0;
 `
-const Line = styled.div`
+const Cols = styled.div`
     display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
 `
-const UrlField = styled.input`
-    flex: 1;
-    min-width: 0;
+/* 칸 하나 — 위에 이름, 아래에 값. */
+const Col = styled.div<{ $bad: boolean }>`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 200px;
+
+    .head { display: flex; align-items: center; gap: 2px; }
+    .name {
+        flex: 1;
+        min-width: 0;
+        height: 24px;
+        padding: 0 2px;
+        border: none;
+        border-bottom: 1px dashed transparent;
+        background: transparent;
+        font-size: 12px;
+        font-weight: 600;
+        color: #374151;
+    }
+    .name:hover { border-bottom-color: #c3c9d2; }
+    .name:focus { outline: none; border-bottom-color: #4f46e5; }
+    .name::placeholder { color: #9ca3af; font-weight: 400; }
+    .val {
+        height: 32px;
+        padding: 0 10px;
+        border: 1px solid ${({ $bad }) => ($bad ? "#d97706" : "#d5dae1")};
+        border-radius: 6px;
+        background: #fff;
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 13px;
+        color: #1f2937;
+    }
+    .val:focus { outline: none; border-color: #4f46e5; }
+    .icon {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        border-radius: 4px;
+        background: none;
+        color: #9ca3af;
+        font-size: 13px;
+        cursor: pointer;
+    }
+    .icon:hover { background: #f3f4f6; color: #4f46e5; }
+    .icon.del:hover { color: #dc2626; }
+`
+const AddCol = styled.button`
     height: 32px;
-    padding: 0 10px;
-    border: 1px solid #d5dae1;
+    padding: 0 12px;
+    border: 1px dashed #c3c9d2;
     border-radius: 6px;
     background: #fff;
+    color: #4b5563;
     font-size: 13px;
-    color: #1f2937;
+    cursor: pointer;
+    &:hover { border-color: #4f46e5; color: #4f46e5; }
+`
+const Label = styled.label`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
 
-    &:focus { outline: none; border-color: #4f46e5; }
+    span { font-weight: 400; color: #8a919c; }
+    input {
+        height: 32px;
+        padding: 0 10px;
+        border: 1px solid #d5dae1;
+        border-radius: 6px;
+        background: #fff;
+        font-size: 13px;
+        font-weight: 400;
+        color: #1f2937;
+    }
+    input:focus { outline: none; border-color: #4f46e5; }
+`
+const Foot = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 10px;
+`
+const Hint = styled.span<{ $warn?: boolean }>`
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: ${({ $warn }) => ($warn ? "#b45309" : "#8a919c")};
+    word-break: break-all;
 `
 const LoadButton = styled.button`
     flex-shrink: 0;
     height: 32px;
-    padding: 0 14px;
+    padding: 0 16px;
     border: none;
     border-radius: 6px;
     background: #4f46e5;
     color: #fff;
     font-size: 13px;
     cursor: pointer;
-
     &:hover:not(:disabled) { background: #4338ca; }
     &:disabled { opacity: .45; cursor: default; }
 `
-/* 둘째 줄: 조각난 주소 + 값 칸들 + 안내. 좁으면 접혀 내려간다. */
-const Vars = styled.div`
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 12px;
-    font-size: 12px;
-    color: #8a919c;
-`
-/* 주소를 조각내 보여준다. 숫자·알파벳 덩어리를 누를 수 있다. */
-const Pieces = styled.div`
-    max-width: 100%;
-    font-family: ui-monospace, Consolas, monospace;
-    font-size: 12px;
-    line-height: 1.9;
-    word-break: break-all;
-`
-/* 알파벳 칸은 점선으로 흐리게 — 보통 바꾸는 건 숫자라 숫자가 먼저 눈에 띄어야 한다. */
-const NumChip = styled.button<{ $on: boolean; $word: boolean }>`
-    padding: 1px 4px;
-    margin: 0 1px;
-    border: 1px ${({ $word, $on }) => ($word && !$on ? "dashed" : "solid")} ${({ $on }) => ($on ? "#4f46e5" : "#c3c9d2")};
-    border-radius: 4px;
-    background: ${({ $on }) => ($on ? "#4f46e5" : "#fff")};
-    color: ${({ $on, $word }) => ($on ? "#fff" : $word ? "#6b7280" : "#1f2937")};
-    font: inherit;
-    cursor: pointer;
-`
-const VarField = styled.label<{ $bad: boolean }>`
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-family: ui-monospace, Consolas, monospace;
-    font-size: 11px;
 
-    input {
-        width: 110px;
-        height: 26px;
-        padding: 0 8px;
-        border: 1px solid ${({ $bad }) => ($bad ? "#d97706" : "#d5dae1")};
-        border-radius: 5px;
-        background: #fff;
-        font: inherit;
-        font-size: 12px;
-        color: #1f2937;
-    }
-    input:focus { outline: none; border-color: #4f46e5; }
-`
-const Hint = styled.span<{ $warn?: boolean }>`
-    color: ${({ $warn }) => ($warn ? "#b45309" : "#8a919c")};
-`
+type Column = { id: number; name: string; text: string };
+let nextId = 1;
 
-/** 칸에 처음 넣어둘 값 — 주소에 적힌 그대로 (숫자는 앞의 0 을 뗀다). */
-const initialOf = (p: Piece) => (p.kind === "num" ? String(Number(p.text)) : p.text);
+/** 아직 안 쓴 가장 작은 {n}. */
+const freshName = (cols: Column[]) => {
+    let n = 1;
+    while (cols.some((c) => c.name === `{${n}}`)) n++;
+    return `{${n}}`;
+};
 
-/** 숫자 바로 앞 몇 글자 — 「ep」 처럼 이 숫자가 어디인지 알려준다. */
-const labelBefore = (pieces: Piece[], i: number) => {
-    const before = pieces.slice(1, i).map((p) => p.text).join("");
-    return before.split(/[/?&=#]/).at(-1)?.slice(-8) || "#";
-}
+/** %EC%83%81 같은 인코딩을 풀어 둔다. 안 풀면 주소에 적은 「상황」 을 못 찾는다. */
+const decode = (u: string) => { try { return decodeURI(u); } catch { return u; } };
 
-export default function UrlBar() {
+export default function UrlBar({ onLoaded }: { onLoaded?: () => void }) {
     const { addImages } = useImages();
 
-    const [url, setUrl] = useState("");
-    /** 숫자 위치 → 값 칸에 적힌 글자 */
-    const [texts, setTexts] = useState<Record<number, string>>({});
+    const [cols, setCols] = useState<Column[]>([{ id: nextId++, name: "{1}", text: "" }]);
+    const [template, setTemplate] = useState("");
     const [busy, setBusy] = useState(false);
     const [status, setStatus] = useState("");
+    const urlInput = useMemo(() => ({ el: null as HTMLInputElement | null }), []);
 
-    const pieces = useMemo(() => splitUrl(url), [url]);
+    const url = decode(template.trim());
+    const isUrl = /^https?:\/\/[^/]+\//i.test(url);
 
-    // 주소를 바꾸면 마지막 숫자 하나만 켜고, 값은 주소에 적힌 번호로 둔다.
-    const handleUrl = (value: string) => {
-        setUrl(value);
+    const patch = (id: number, change: Partial<Column>) => {
         setStatus("");
-        const next = splitUrl(value);
-        const pick = next ? defaultPick(next) : -1;
-        setTexts(pick >= 0 ? { [pick]: initialOf(next![pick]) } : {});
-    }
+        setCols((cs) => cs.map((c) => (c.id === id ? { ...c, ...change } : c)));
+    };
+    const addCol = () => { setStatus(""); setCols((cs) => [...cs, { id: nextId++, name: freshName(cs), text: "" }]); };
+    const removeCol = (id: number) => { setStatus(""); setCols((cs) => cs.filter((c) => c.id !== id)); };
 
-    const toggle = (i: number) => {
+    /** 칸 이름을 주소 칸의 커서 자리(없으면 끝)에 끼워 넣는다. */
+    const insertName = (name: string) => {
+        if (!name) return;
+        const el = urlInput.el;
+        const at = el?.selectionStart ?? template.length;
+        const end = el?.selectionEnd ?? at;
+        setTemplate(template.slice(0, at) + name + template.slice(end));
         setStatus("");
-        setTexts((prev) => {
-            const { [i]: had, ...rest } = prev;
-            return had !== undefined ? rest : { ...rest, [i]: initialOf(pieces![i]) };
-        });
-    }
+        requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(at + name.length, at + name.length); });
+    };
 
-    const order = Object.keys(texts).map(Number).sort((a, b) => a - b);
-    const parsed = useMemo(
-        () => new Map(Object.entries(texts).map(([k, t]) => [Number(k), parseValues(t)])),
-        [texts],
-    );
+    // 칸마다 검사. 값이 비었고 주소에도 안 쓴 칸은 없는 셈 친다(+ 만 눌러 둔 칸).
+    const used = cols.filter((c) => c.text || (c.name && url.includes(c.name)));
+    const checked = used.map((c) => {
+        const parsed = parseValues(c.text);
+        const problem =
+            !c.name ? "칸 이름을 넣으세요"
+            : !c.text ? `「${c.name}」 의 값을 넣으세요`
+            : isUrl && !url.includes(c.name) ? `「${c.name}」 가 주소에 없습니다 — 바꿀 자리에 그대로 적으세요`
+            : !parsed.ok ? `「${c.name}」 · ${parsed.reason}`
+            : "";
+        return { col: c, parsed, problem };
+    });
+    const problem = checked.find((c) => c.problem)?.problem ?? "";
+    const colKey = JSON.stringify(used.map((c) => [c.name, c.text]));
 
-    const problem = [...parsed.values()].find((p) => !p.ok);
-    const vars = useMemo(() => {
-        const out = new Map<number, Value[]>();
-        for (const [k, p] of parsed) if (p.ok) out.set(k, p.values);
-        return out;
-    }, [parsed]);
+    // 반복 순서는 칸 순서가 아니라 주소에서의 위치 — 왼쪽이 바깥.
+    const conds: Cond[] = useMemo(() => (problem || !isUrl ? [] : checked
+        .map(({ col, parsed }) => ({ key: col.name, values: parsed.ok ? parsed.values : [] }))
+        .sort((a, b) => url.indexOf(a.key) - url.indexOf(b.key))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [problem, isUrl, url, colKey]);
+    const total = problem ? 0 : countConds(conds);
 
-    const total = problem ? 0 : countOf(vars);
     const groups = useMemo(
-        () => (pieces && !problem && vars.size ? buildGroups(pieces, vars) : []),
-        [pieces, problem, vars],
+        () => (isUrl && !problem && total <= MAX_COUNT ? buildTemplateGroups(url, conds) : []),
+        [isUrl, problem, total, url, conds],
     );
 
     const handleLoad = async (e: React.FormEvent) => {
         e.preventDefault();
         if (busy || groups.length === 0) return;
-
         setBusy(true);
-        const { items, checked } = await loadGroups(groups, (n, c) => setStatus(`확인 중 · ${c}개 중 ${n}장 찾음`));
+        const { items, checked: tried } = await loadGroups(groups, (n, c) => setStatus(`확인 중 · ${c}개 중 ${n}장 찾음`));
         addImages(items);
         setStatus(
-            items.length === 0 ? "열리는 이미지가 없습니다. 주소와 번호를 확인하세요."
-            : `${items.length}장 추가 (${checked}개 확인${checked < total ? ` · 빈 번호가 이어져 ${total - checked}개 건너뜀` : ""})`
+            items.length === 0 ? "열리는 이미지가 없습니다. 주소와 값을 확인하세요."
+            : `${items.length}장 추가 (${tried}개 확인${tried < total ? ` · 빈 번호가 이어져 ${total - tried}개 건너뜀` : ""})`
         );
         setBusy(false);
-    }
+        if (items.length > 0) onLoaded?.();   // 메뉴 패널이면 닫는다
+    };
 
-    const warn = !status && (Boolean(problem) || total > MAX_COUNT || (Boolean(url) && !pieces));
+    const sample = groups[0]?.[0];
+    const names = used.map((c) => c.name).filter(Boolean);
+    const warn = !status && Boolean(problem || total > MAX_COUNT || (template && !isUrl));
     const hint =
         status
-        || (url && !pieces && "http 로 시작하는 이미지 주소를 넣으세요.")
-        || (pieces && order.length === 0 && "바꿀 칸을 누르세요.")
-        || (problem && !problem.ok && problem.reason)
+        || (template && !isUrl && "http 로 시작하는 이미지 주소를 넣으세요.")
+        || problem
         || (total > MAX_COUNT && `${total}장 — 한 번에 ${MAX_COUNT}장까지입니다.`)
-        || (groups.length > 1 && `${groups.length}묶음 × 최대 ${groups[0].length}장 · 묶음마다 연속 ${STOP_AFTER}장이 없으면 다음으로`)
-        || (groups.length === 1 && `${groups[0].length}장 · 범위는 1..239 · a..f, 골라서는 1,3,7`)
+        || (!template && "바뀌는 부분마다 칸을 만들고, 주소의 그 자리에 칸 이름을 적으세요.")
+        || (groups.length > 1 && `${total}장 · ${groups.length}묶음 · 묶음마다 연속 ${STOP_AFTER}장이 없으면 다음으로`)
+        || (groups.length === 1 && `${total}장`)
         || "";
 
     return (
         <Form onSubmit={handleLoad}>
-            <Line>
-                <UrlField
-                    type="url"
-                    placeholder="이미지 주소를 붙여넣으세요 — 예: https://…/ep3/001.webp"
-                    value={url}
-                    onChange={(e) => handleUrl(e.target.value)}
+            <Cols>
+                {cols.map((c) => {
+                    const row = checked.find((k) => k.col.id === c.id);
+                    return (
+                        <Col key={c.id} $bad={Boolean(c.text) && Boolean(row && !row.parsed.ok)}>
+                            <div className="head">
+                                <input className="name" placeholder="{1}" value={c.name}
+                                    aria-label="칸 이름" onChange={(e) => patch(c.id, { name: e.target.value })} />
+                                <button type="button" className="icon" title="이 이름을 주소에 넣기" aria-label="이 이름을 주소에 넣기"
+                                    onClick={() => insertName(c.name)}>↓</button>
+                                <button type="button" className="icon del" title="칸 지우기" aria-label="칸 지우기"
+                                    onClick={() => removeCol(c.id)}>×</button>
+                            </div>
+                            <input className="val" placeholder="1..54 · a..z · red, blue" value={c.text}
+                                aria-label={`${c.name || "칸"} 값`} title="하나: MAHORA/JYH1 · 숫자 범위: 1..54 · 001..100 · 알파벳 범위: a..z · aa..zz · 단어 여러 개: happy, sad, angry"
+                                onChange={(e) => patch(c.id, { text: e.target.value })} />
+                        </Col>
+                    );
+                })}
+                <AddCol type="button" onClick={addCol}>+ 바꿀 부분</AddCol>
+            </Cols>
+
+            <Label>
+                <div>주소 <span>{names.length ? `— 바꿀 자리에 ${names.map((n) => `「${n}」`).join(" ")} 를 그대로` : "— 바꿀 자리에 칸 이름을 그대로"}</span></div>
+                <input
+                    ref={(el) => { urlInput.el = el; }}
+                    type="text"
+                    placeholder="https://example.com/comic/{1}/{2}.webp"
+                    value={template}
+                    onChange={(e) => { setTemplate(e.target.value); setStatus(""); }}
                 />
+            </Label>
+
+            <Foot>
+                <Hint $warn={warn}>
+                    {hint}
+                    {!status && !problem && sample && conds.length > 0 && <> · 예: {sample}</>}
+                </Hint>
                 <LoadButton type="submit" disabled={busy || groups.length === 0}>
                     {busy ? "불러오는 중…" : "불러오기"}
                 </LoadButton>
-            </Line>
-
-            {url && (
-                <Vars>
-                    {pieces && (
-                        <Pieces>
-                            {pieces.map((p, i) =>
-                                !isSlot(p)
-                                    // 도메인은 길기만 하고 바꿀 일이 없다.
-                                    ? <span key={i}>{i === 0 ? "…" : p.text}</span>
-                                    : <NumChip key={i} type="button" $on={i in texts} $word={p.kind === "word"} onClick={() => toggle(i)}
-                                          title={i in texts ? "값 칸 끄기" : "여기도 바꾸기"}>{p.text}</NumChip>
-                            )}
-                        </Pieces>
-                    )}
-
-                    {pieces && order.map((i) => (
-                        <VarField key={i} $bad={!parsed.get(i)?.ok} title="1..239 · a..f · 1,3,7 · X,Y">
-                            {labelBefore(pieces, i)}
-                            <input
-                                value={texts[i]}
-                                placeholder="1..239"
-                                onChange={(e) => { setStatus(""); setTexts((prev) => ({ ...prev, [i]: e.target.value })); }}
-                            />
-                        </VarField>
-                    ))}
-
-                    {hint && <Hint $warn={warn}>{hint}</Hint>}
-                </Vars>
-            )}
+            </Foot>
         </Form>
-    )
+    );
 }
