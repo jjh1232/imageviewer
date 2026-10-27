@@ -18,6 +18,8 @@ type Dictionary = {
     ogAlt: string;
     open: string;
     langLabel: string;
+    toLight: string;
+    toDark: string;
     lead: string;
     how: Section;
     examples: Section;
@@ -35,6 +37,8 @@ const ko: Dictionary = {
     ogAlt: "prelaps 온라인 만화·웹툰 뷰어",
     open: "뷰어 열기",
     langLabel: "언어",
+    toLight: "밝은 화면으로",
+    toDark: "어두운 화면으로",
     lead: "여러 장으로 나뉜 만화·웹툰·스캔본을 한 화면에서 이어 보는 이미지 뷰어입니다. 한 장씩, 두 장 펼침으로, 세로로 이어서 볼 수 있습니다.",
     how: {
         h: "사용법",
@@ -71,6 +75,8 @@ const en: Dictionary = {
     ogAlt: "prelaps online comic & webtoon viewer",
     open: "Open the viewer",
     langLabel: "Language",
+    toLight: "Switch to light",
+    toDark: "Switch to dark",
     lead: "An image viewer for comics, webtoons and scans split into many files. Read them one page at a time, as a two-page spread, or as one continuous vertical strip.",
     how: {
         h: "How to use",
@@ -107,6 +113,8 @@ const ja: Dictionary = {
     ogAlt: "prelaps オンライン漫画・ウェブトゥーンビューア",
     open: "ビューアを開く",
     langLabel: "言語",
+    toLight: "ライトモードへ",
+    toDark: "ダークモードへ",
     lead: "何枚にも分かれた漫画・ウェブトゥーン・スキャン画像を、ひとつの画面で続けて読むための画像ビューアです。1枚ずつ、見開き、縦スクロールで表示できます。",
     how: {
         h: "使い方",
