@@ -1,8 +1,8 @@
 "use client"
 
 import { useImages } from "@/app/(Context)/ImageProvider";
-import { buildTemplateGroups, Cond, countConds, loadGroups, MAX_COUNT, parseValues, STOP_AFTER } from "@/app/(Tools)/UrlSequence";
-import { useMemo, useState } from "react";
+import { buildTemplateGroups, Cond, countConds, itemsFromGroups, MAX_COUNT, parseValues, pruneMissing, STOP_AFTER, templateGroupNames } from "@/app/(Tools)/UrlSequence";
+import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
 /* ── 주소로 불러오기 — 바꿀 부분을 칸으로 ──────────────────────
@@ -24,7 +24,35 @@ import styled from "styled-components";
  * 주소에서 왼쪽에 있는 이름이 바깥 반복이다(캐릭터마다 1..54 를 돈다).
  *
  * 칸 이름 옆 「↓」 는 그 이름을 주소 칸의 커서 자리에 끼워 넣는다 — 손으로 안 쳐도 되게.
+ *
+ * 공유 — 불러오면 주소창이 그대로 링크가 된다. 받은 사람이 열면 칸이 채워져 바로 불러온다.
+ *   /editor?u=https://ichio.org/{1}/{2}.webp&c={1}=MAHORA/JYH1&c={2}=1..54
+ * 사진이 아니라 「불러오는 방법」 을 담는 것이라 길이가 짧고, 파일로 연 사진은 담을 수 없다.
+ * 「링크 복사」 는 주소창을 손으로 복사하는 것과 같다.
+ * 「바로가기 저장」(위 막대)은 그 링크로 옮겨 주는 .html 파일을 내려받는다 — 불러올 때 onLoaded 로 링크를 넘긴다.
  */
+const SHARE_URL = "u";
+const SHARE_COL = "c";
+
+/** 이 화면의 주소(경로 + 쿼리). 주소창에 쓰고, 앞에 origin 을 붙여 복사한다. */
+function sharePath(template: string, cols: { name: string; text: string }[]): string {
+    const q = new URLSearchParams();
+    q.set(SHARE_URL, template);
+    for (const c of cols) q.append(SHARE_COL, `${c.name}=${c.text}`);
+    return `${location.pathname}?${q}`;
+}
+
+/** 링크에서 주소와 칸을 꺼낸다. 칸 이름에는 = 가 없다고 보고 첫 = 에서 나눈다. */
+function readShared(): { template: string; cols: { name: string; text: string }[] } | null {
+    const q = new URLSearchParams(location.search);
+    const template = q.get(SHARE_URL);
+    if (!template) return null;
+    const cols = q.getAll(SHARE_COL).map((s) => {
+        const at = s.indexOf("=");
+        return at < 0 ? { name: s, text: "" } : { name: s.slice(0, at), text: s.slice(at + 1) };
+    });
+    return { template, cols };
+}
 
 const Form = styled.form`
     display: flex;
@@ -56,22 +84,22 @@ const Col = styled.div<{ $bad: boolean }>`
         background: transparent;
         font-size: 12px;
         font-weight: 600;
-        color: #374151;
+        color: var(--text-2);
     }
-    .name:hover { border-bottom-color: #c3c9d2; }
-    .name:focus { outline: none; border-bottom-color: #4f46e5; }
-    .name::placeholder { color: #9ca3af; font-weight: 400; }
+    .name:hover { border-bottom-color: var(--line-dash); }
+    .name:focus { outline: none; border-bottom-color: var(--accent); }
+    .name::placeholder { color: var(--placeholder); font-weight: 400; }
     .val {
         height: 32px;
         padding: 0 10px;
-        border: 1px solid ${({ $bad }) => ($bad ? "#d97706" : "#d5dae1")};
+        border: 1px solid ${({ $bad }) => ($bad ? "var(--warn)" : "var(--line-strong)")};
         border-radius: 6px;
-        background: #fff;
+        background: var(--bg);
         font-family: ui-monospace, Consolas, monospace;
         font-size: 13px;
-        color: #1f2937;
+        color: var(--text);
     }
-    .val:focus { outline: none; border-color: #4f46e5; }
+    .val:focus { outline: none; border-color: var(--accent); }
     .icon {
         width: 22px;
         height: 22px;
@@ -79,23 +107,23 @@ const Col = styled.div<{ $bad: boolean }>`
         border: none;
         border-radius: 4px;
         background: none;
-        color: #9ca3af;
+        color: var(--placeholder);
         font-size: 13px;
         cursor: pointer;
     }
-    .icon:hover { background: #f3f4f6; color: #4f46e5; }
-    .icon.del:hover { color: #dc2626; }
+    .icon:hover { background: var(--bg-soft); color: var(--accent); }
+    .icon.del:hover { color: var(--danger); }
 `
 const AddCol = styled.button`
     height: 32px;
     padding: 0 12px;
-    border: 1px dashed #c3c9d2;
+    border: 1px dashed var(--line-dash);
     border-radius: 6px;
-    background: #fff;
-    color: #4b5563;
+    background: var(--bg);
+    color: var(--text-2);
     font-size: 13px;
     cursor: pointer;
-    &:hover { border-color: #4f46e5; color: #4f46e5; }
+    &:hover { border-color: var(--accent); color: var(--accent); }
 `
 const Label = styled.label`
     display: flex;
@@ -103,20 +131,20 @@ const Label = styled.label`
     gap: 4px;
     font-size: 12px;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-2);
 
-    span { font-weight: 400; color: #8a919c; }
+    span { font-weight: 400; color: var(--muted); }
     input {
         height: 32px;
         padding: 0 10px;
-        border: 1px solid #d5dae1;
+        border: 1px solid var(--line-strong);
         border-radius: 6px;
-        background: #fff;
+        background: var(--bg);
         font-size: 13px;
         font-weight: 400;
-        color: #1f2937;
+        color: var(--text);
     }
-    input:focus { outline: none; border-color: #4f46e5; }
+    input:focus { outline: none; border-color: var(--accent); }
 `
 const Foot = styled.div`
     display: flex;
@@ -127,8 +155,21 @@ const Hint = styled.span<{ $warn?: boolean }>`
     flex: 1;
     min-width: 0;
     font-size: 12px;
-    color: ${({ $warn }) => ($warn ? "#b45309" : "#8a919c")};
+    color: ${({ $warn }) => ($warn ? "var(--warn-text)" : "var(--muted)")};
     word-break: break-all;
+`
+const ShareButton = styled.button`
+    flex-shrink: 0;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text-2);
+    font-size: 13px;
+    cursor: pointer;
+    &:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    &:disabled { opacity: .45; cursor: default; }
 `
 const LoadButton = styled.button`
     flex-shrink: 0;
@@ -136,11 +177,11 @@ const LoadButton = styled.button`
     padding: 0 16px;
     border: none;
     border-radius: 6px;
-    background: #4f46e5;
-    color: #fff;
+    background: var(--accent);
+    color: var(--on-accent);
     font-size: 13px;
     cursor: pointer;
-    &:hover:not(:disabled) { background: #4338ca; }
+    &:hover:not(:disabled) { background: var(--accent-strong); }
     &:disabled { opacity: .45; cursor: default; }
 `
 
@@ -157,13 +198,13 @@ const freshName = (cols: Column[]) => {
 /** %EC%83%81 같은 인코딩을 풀어 둔다. 안 풀면 주소에 적은 「상황」 을 못 찾는다. */
 const decode = (u: string) => { try { return decodeURI(u); } catch { return u; } };
 
-export default function UrlBar({ onLoaded }: { onLoaded?: () => void }) {
-    const { addImages } = useImages();
+export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: string) => void }) {
+    const { addImages, removeImages } = useImages();
 
     const [cols, setCols] = useState<Column[]>([{ id: nextId++, name: "{1}", text: "" }]);
     const [template, setTemplate] = useState("");
-    const [busy, setBusy] = useState(false);
     const [status, setStatus] = useState("");
+    const [autoLoad, setAutoLoad] = useState(false);
     const urlInput = useMemo(() => ({ el: null as HTMLInputElement | null }), []);
 
     const url = decode(template.trim());
@@ -215,18 +256,52 @@ export default function UrlBar({ onLoaded }: { onLoaded?: () => void }) {
         [isUrl, problem, total, url, conds],
     );
 
-    const handleLoad = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (busy || groups.length === 0) return;
-        setBusy(true);
-        const { items, checked: tried } = await loadGroups(groups, (n, c) => setStatus(`확인 중 · ${c}개 중 ${n}장 찾음`));
-        addImages(items);
-        setStatus(
-            items.length === 0 ? "열리는 이미지가 없습니다. 주소와 값을 확인하세요."
-            : `${items.length}장 추가 (${tried}개 확인${tried < total ? ` · 빈 번호가 이어져 ${total - tried}개 건너뜀` : ""})`
-        );
-        setBusy(false);
-        if (items.length > 0) onLoaded?.();   // 메뉴 패널이면 닫는다
+    const groupNames = useMemo(() => templateGroupNames(conds), [conds]);
+
+    const linkPath = () => sharePath(template.trim(), used.map(({ name, text }) => ({ name, text })));
+
+    // 바로 넣고 패널을 닫는다. 안 열리는 번호는 뒤에서 빠진다(UrlSequence 의 「먼저 넣고, 뒤에서 뺀다」).
+    const load = () => {
+        if (groups.length === 0) return;
+        const perGroup = itemsFromGroups(groups, groupNames);
+        const added = perGroup.reduce((n, g) => n + g.length, 0);
+        addImages(perGroup.flat());
+        history.replaceState(history.state, "", linkPath());   // 주소창 = 공유 링크
+        setStatus(`${added}장 넣음 · 안 열리는 번호를 빼는 중…`);
+        let host = "";
+        try { host = new URL(url).hostname; } catch { /* groups 가 있으면 주소는 맞다 */ }
+        onLoaded?.(location.origin + linkPath(), groupNames[0] || host);   // 메뉴 패널을 닫고, 바로가기 링크를 넘긴다
+        pruneMissing(perGroup, removeImages).then(({ kept, dropped }) => setStatus(
+            kept === 0 ? "열리는 이미지가 없습니다. 주소와 값을 확인하세요."
+            : `${kept}장${dropped ? ` (안 열리는 번호 ${dropped}개 뺌)` : ""}`
+        ));
+    };
+    const handleLoad = (e: React.FormEvent) => { e.preventDefault(); load(); };
+
+    // 공유 링크로 열었으면 칸을 채우고, 칸이 계산된 다음 렌더에서 불러온다.
+    useEffect(() => {
+        const shared = readShared();
+        if (!shared) return;
+        setTemplate(shared.template);
+        setCols(shared.cols.length ? shared.cols.map((c) => ({ id: nextId++, ...c })) : [{ id: nextId++, name: "{1}", text: "" }]);
+        setAutoLoad(true);
+    }, []);
+    useEffect(() => {
+        if (!autoLoad) return;
+        setAutoLoad(false);
+        if (groups.length > 0) load();
+        else setStatus(problem || "링크의 주소를 읽지 못했습니다.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoLoad]);
+
+    const copyLink = async () => {
+        const link = location.origin + linkPath();
+        try {
+            await navigator.clipboard.writeText(link);
+            setStatus("링크를 복사했습니다 — 받은 사람이 열면 같은 이미지를 불러옵니다.");
+        } catch {
+            setStatus(`복사하지 못했습니다. 직접 복사하세요: ${link}`);
+        }
     };
 
     const sample = groups[0]?.[0];
@@ -282,8 +357,10 @@ export default function UrlBar({ onLoaded }: { onLoaded?: () => void }) {
                     {hint}
                     {!status && !problem && sample && conds.length > 0 && <> · 예: {sample}</>}
                 </Hint>
-                <LoadButton type="submit" disabled={busy || groups.length === 0}>
-                    {busy ? "불러오는 중…" : "불러오기"}
+                <ShareButton type="button" disabled={groups.length === 0} onClick={copyLink}
+                    title="지금 주소와 칸을 담은 링크를 복사합니다">링크 복사</ShareButton>
+                <LoadButton type="submit" disabled={groups.length === 0}>
+                    불러오기
                 </LoadButton>
             </Foot>
         </Form>

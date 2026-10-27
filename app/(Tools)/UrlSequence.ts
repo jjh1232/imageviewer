@@ -1,4 +1,4 @@
-import type { ImageItem } from "./UserImageManager";
+import type { ImageItem, ImageGroup } from "./UserImageManager";
 
 /* ── 번호가 붙은 주소 한꺼번에 불러오기 ─────────────────────────
  *
@@ -204,6 +204,18 @@ export function countConds(conds: Cond[]): number {
     return conds.reduce((n, c) => n * c.values.length, 1);
 }
 
+/**
+ * buildTemplateGroups 의 묶음마다 붙일 이름 — 바깥 조건 값을 이어 붙인다(a · 3).
+ * 조건이 하나뿐이면 묶음도 하나라 이름은 비워 둔다.
+ */
+export function templateGroupNames(conds: Cond[]): string[] {
+    let names = [""];
+    for (const c of conds.slice(0, -1)) {
+        names = names.flatMap((n) => c.values.map((v) => (n ? `${n} · ${v}` : String(v))));
+    }
+    return names;
+}
+
 export function buildTemplateGroups(template: string, conds: Cond[]): string[][] {
     if (conds.length === 0) return [[template]];
     if (countConds(conds) > MAX_COUNT) return [];
@@ -246,39 +258,62 @@ function titleOf(url: string): string {
     }
 }
 
-/**
- * 그룹마다 앞에서부터 CONCURRENCY 장씩 열어보고, 열리는 것만 **원래 순서대로** 돌려준다.
- * 한 그룹 안에서 연속 STOP_AFTER 장이 안 열리면 그 그룹의 나머지는 건너뛴다.
+/*
+ * 불러오기는 두 단계다 — 먼저 넣고, 뒤에서 뺀다.
+ *
+ * 예전에는 전부 열어 본 뒤에 넣어서, 몇백 장이면 「확인 중」 을 한참 기다려야 첫 장이 보였다.
+ * 지금은 만든 주소를 **확인 없이 바로** 넣어 첫 장을 곧장 보여 주고(itemsFromGroups),
+ * 뒤에서 열어 보며 안 열리는 번호를 빼 나간다(pruneMissing). si-ran.com/preview 가 이렇게 한다.
  */
-export async function loadGroups(
-    groups: string[][],
-    onProgress?: (found: number, checked: number) => void,
-): Promise<{ items: ImageItem[]; checked: number }> {
-    const found: string[] = [];
-    let checked = 0;
 
-    for (const urls of groups) {
+/** 묶음마다 항목을 만든다. 아직 열리는지 모른다. */
+export function itemsFromGroups(groups: string[][], names: string[] = []): ImageItem[][] {
+    const loadId = crypto.randomUUID();
+    return groups.map((urls, g) => {
+        const group: ImageGroup = { id: `${loadId}:${g}`, name: names[g] || titleOf(urls[0] ?? "") };
+        return urls.map((url) => ({
+            id: crypto.randomUUID(),
+            url,
+            title: titleOf(url),
+            size: 0,            // 남의 서버 그림이라 크기를 모른다. 목록에는 번호만 나온다.
+            type: "",
+            group,
+        }));
+    });
+}
+
+/**
+ * 묶음마다 앞에서부터 CONCURRENCY 장씩 열어 보고, 안 열리는 것을 remove 로 뺀다.
+ * 한 묶음 안에서 연속 STOP_AFTER 장이 안 열리면 그 묶음의 나머지는 열어 보지 않고 통째로 뺀다
+ * (범위를 넉넉히 잡은 회차의 뒤쪽 빈 번호).
+ * 볼 때 브라우저가 같은 주소를 다시 받지 않는다 — 여기서 받은 것이 캐시에 남는다.
+ */
+export async function pruneMissing(
+    groups: ImageItem[][],
+    remove: (ids: string[]) => void,
+): Promise<{ kept: number; dropped: number }> {
+    let kept = 0, dropped = 0;
+
+    for (const items of groups) {
         let misses = 0;
-        for (let i = 0; i < urls.length && misses < STOP_AFTER; i += CONCURRENCY) {
-            const batch = urls.slice(i, i + CONCURRENCY);
-            const ok = await Promise.all(batch.map(probe));
-            checked += batch.length;
+        let i = 0;
+        for (; i < items.length && misses < STOP_AFTER; i += CONCURRENCY) {
+            const batch = items.slice(i, i + CONCURRENCY);
+            const ok = await Promise.all(batch.map((it) => probe(it.url)));
 
             // 순서대로 세어야 「연속」 이 맞는다. 끊긴 뒤에 열린 장은 버리지 않는다.
-            batch.forEach((url, k) => {
-                if (ok[k]) { found.push(url); misses = 0; }
-                else misses++;
+            const gone: string[] = [];
+            batch.forEach((it, k) => {
+                if (ok[k]) { kept++; misses = 0; }
+                else { gone.push(it.id); misses++; }
             });
-            onProgress?.(found.length, checked);
+            dropped += gone.length;
+            remove(gone);
         }
+        // 빈 번호가 이어져 멈췄으면 나머지는 없는 셈.
+        const rest = items.slice(i).map((it) => it.id);
+        dropped += rest.length;
+        remove(rest);
     }
-
-    const items = found.map((url) => ({
-        id: crypto.randomUUID(),
-        url,
-        title: titleOf(url),
-        size: 0,            // 남의 서버 그림이라 크기를 모른다. 목록에는 번호만 나온다.
-        type: "",
-    }));
-    return { items, checked };
+    return { kept, dropped };
 }

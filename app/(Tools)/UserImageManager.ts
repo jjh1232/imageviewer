@@ -6,7 +6,12 @@ export interface ImageItem{
   title: string;
   size: number;
   type: string;
+  /** 목록 보기에서 묶어 보여 줄 묶음. 주소 불러오기면 바깥 칸 값마다, 파일이면 한 번 열 때마다 하나. */
+  group?: ImageGroup;
 }
+
+/** id 로 구분한다 — 따로 두 번 불러온 「a」 는 이름이 같아도 다른 묶음이다. */
+export interface ImageGroup{ id: string; name: string }
 
 /* ── 큰 그림 줄이기 ────────────────────────────────────────────
  *
@@ -83,6 +88,8 @@ export const UserImageManager=()=>{
     //파일 변환
     const inputimages=useCallback(async (files:File[]):Promise<ImageItem[]>=>{
         const imageFiles = Array.from(files).filter(file=>file.type.startsWith('image/'));
+        // 한 번 연 파일들이 한 묶음. 이름은 첫 파일 이름(폴더째 열었으면 대개 그 폴더의 첫 장이다).
+        const group:ImageGroup={ id:crypto.randomUUID(), name:imageFiles[0]?.name ?? "" };
 
         return Promise.all(imageFiles.map(async (file)=>{
             const blob = await shrink(file);
@@ -92,6 +99,7 @@ export const UserImageManager=()=>{
                 title:file.name,
                 size:blob.size,        // 실제로 들고 있는 크기를 보여준다
                 type:blob.type || file.type,
+                group,
             };
         }));
     },[])

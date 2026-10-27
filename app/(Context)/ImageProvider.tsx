@@ -1,13 +1,6 @@
 import { Dispatch, SetStateAction, useCallback, useState } from "react";
 import { createContext,useContext,ReactNode } from "react";
-
-interface ImageItem{
-    id:string;
-    url:string;
-    title:string;
-    size:number;
-    type:string;
-}
+import type { ImageItem } from "@/app/(Tools)/UserImageManager";
 
 interface ImageManager{
     //images:File[]; 파일자체보다 url이 가벼우니그렇게
@@ -15,6 +8,8 @@ interface ImageManager{
     images:ImageItem[];
     addImages:(newImages:ImageItem[])=>void;
     removeImage:(id:string)=>void;
+    removeImages:(ids:string[])=>void;
+    clearImages:()=>void;
 }
 //context생성
 const ImageContext=createContext<ImageManager | null>(null);
@@ -38,8 +33,23 @@ export const ImageProvider=({children}:{children:ReactNode})=>{
       })
     },[])
 
+    // 여러 장을 한 번에. 주소 불러오기가 안 열리는 번호를 뒤에서 빼 나갈 때 쓴다 — 한 장씩 빼면 그때마다 다시 그린다.
+    const removeImages=useCallback((ids:string[])=>{
+      if(ids.length===0) return;
+      const drop=new Set(ids);
+      setImages(prev=>prev.filter(i=>!drop.has(i.id)));
+    },[])
+
+    // 전부 비우기(위 막대 「비우기」). blob: 은 되돌려 메모리를 푼다.
+    const clearImages=useCallback(()=>{
+      setImages(prev=>{
+        for(const i of prev) if(i.url.startsWith("blob:")) URL.revokeObjectURL(i.url);
+        return [];
+      })
+    },[])
+
     //이미지닮기
-    const value:ImageManager={images,addImages,removeImage};
+    const value:ImageManager={images,addImages,removeImage,removeImages,clearImages};
 
     return (
         <ImageContext.Provider value={value} >

@@ -13,14 +13,14 @@ const Wrapper=styled.div`
     min-height: 0;              /* 안쪽 목록이 스크롤되려면 필요하다 */
     top: 0px;
     z-index: 10;
-    border-right: 1px solid #e6e9ee;
-    background: #fafbfc;
+    border-right: 1px solid var(--line);
+    background: var(--bg-side);
 `
 
 
 export default function Leftsidebar({
-    Currentnumber,setCurrentnumber,}:
-    {Currentnumber:number,setCurrentnumber:React.Dispatch<React.SetStateAction<number>>;}
+    Currentnumber,setCurrentnumber,onJump}:
+    {Currentnumber:number,setCurrentnumber:React.Dispatch<React.SetStateAction<number>>;onJump:(i:number)=>void}
 ){
 
     const {images,addImages}=useImages();
@@ -37,6 +37,6 @@ export default function Leftsidebar({
     },[addImages,inputimages]) //이함수를 쓴다는걸 나타내는겸 또는 분기나조건마다 함수가 변경될수도있음
     return (<Wrapper onDragOver={handleDragover} onDrop={handlerDrop}>
              {/*메인박스*/}   
-            <LeftMain Currentnumber={Currentnumber} setCurrentnumber={setCurrentnumber}/>
+            <LeftMain Currentnumber={Currentnumber} setCurrentnumber={setCurrentnumber} onJump={onJump}/>
     </Wrapper>)
 }

@@ -15,10 +15,10 @@ const Wrapper=styled.div`
     align-items: center;
     justify-content: center;
     gap: 14px;
-    border-top: 1px solid #e6e9ee;
-    background-color: #fff;
+    border-top: 1px solid var(--line);
+    background-color: var(--bg);
     font-size: 13px;
-    color: #1f2937;
+    color: var(--text);
 `
 /* 오른쪽 끝에 붙는다. 넘기기·확대 묶음은 가운데에 그대로 둔다. */
 const FullButton=styled.button`
@@ -31,14 +31,14 @@ const FullButton=styled.button`
     display: flex;
     align-items: center;
     gap: 6px;
-    border: 1px solid #d5dae1;
+    border: 1px solid var(--line-strong);
     border-radius: 6px;
-    background: #fff;
+    background: var(--bg);
     color: inherit;
     font-size: 13px;
     cursor: pointer;
-    &:hover { background: #f3f4f6; }
-    &[aria-pressed="true"] { background: #eef2ff; border-color: #4f46e5; color: #4f46e5; }
+    &:hover { background: var(--bg-soft); }
+    &[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 `
 const NavButton=styled.button`
     height: 30px;
@@ -46,14 +46,14 @@ const NavButton=styled.button`
     display: flex;
     align-items: center;
     gap: 6px;
-    border: 1px solid #d5dae1;
+    border: 1px solid var(--line-strong);
     border-radius: 6px;
-    background: #fff;
+    background: var(--bg);
     color: inherit;
     font-size: 13px;
     cursor: pointer;
 
-    &:hover:not(:disabled) { background: #f3f4f6; }
+    &:hover:not(:disabled) { background: var(--bg-soft); }
     &:disabled { opacity: .4; cursor: default; }
 `
 const Page=styled.span`
@@ -64,13 +64,13 @@ const Page=styled.span`
 const Divider=styled.span`
     width: 1px;
     height: 18px;
-    background: #e6e9ee;
+    background: var(--line);
 `
 const Zoom=styled.div`
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #8a919c;
+    color: var(--muted);
 
     button {
         padding: 0;
@@ -80,15 +80,15 @@ const Zoom=styled.div`
         font-size: 15px;
         cursor: pointer;
     }
-    button:hover { color: #4f46e5; }
-    input { width: 110px; accent-color: #4f46e5; }
+    button:hover { color: var(--accent); }
+    input { width: 110px; accent-color: var(--accent); }
 `
 /* 눌러서 숫자를 바로 쓴다. Enter·칸 밖 클릭이면 적용, Esc 면 취소. */
 const Percent=styled.label`
     display: flex;
     align-items: center;
     gap: 1px;
-    color: #1f2937;
+    color: var(--text);
     font-variant-numeric: tabular-nums;
 
     input {
@@ -103,10 +103,33 @@ const Percent=styled.label`
         text-align: right;
         accent-color: auto;
     }
-    input:hover { border-color: #d5dae1; }
-    input:focus { outline: none; border-color: #4f46e5; background: #fff; }
+    input:hover { border-color: var(--line-strong); }
+    input:focus { outline: none; border-color: var(--accent); background: var(--bg); }
 `
 
+
+/* ── 크기 막대 ───────────────────────────────────────────────
+ *
+ * 막대 가운데가 100%(원본)다. 사진마다 달라지는 건 「맞춤」 배율이고 100% 의 뜻은 늘 같다.
+ * 일직선(10..800)으로 펴면 100% 가 왼쪽 11% 자리에 박히고 오른쪽은 대부분 쓸 일 없는 큰 배율이라,
+ * 양쪽 절반을 각각 곱 비율로 편다 — 왼쪽 10→100%, 오른쪽 100→800%.
+ * 가운데 근처(SNAP 안)에 오면 100% 에 붙인다.
+ */
+const SLIDER_MAX = 1000;
+const SNAP = 15;
+function scaleToPos(scale: number): number {
+    const half = SLIDER_MAX / 2;
+    return scale <= 1
+        ? half * (1 - Math.log(scale) / Math.log(MIN_SCALE))
+        : half + half * Math.log(scale) / Math.log(MAX_SCALE);
+}
+function posToScale(pos: number): number {
+    const half = SLIDER_MAX / 2;
+    if (Math.abs(pos - half) <= SNAP) return 1;
+    return pos <= half
+        ? Math.pow(MIN_SCALE, 1 - pos / half)
+        : Math.pow(MAX_SCALE, (pos - half) / half);
+}
 
 export default function ViewBottom({
     Currentnumber,setCurrentnumber,viewmode,scale,setScale,fit,onFit}:
@@ -157,13 +180,16 @@ export default function ViewBottom({
         <Page>{pageLabel()}</Page>
         <Divider />
 
-        <Zoom>
+        {viewmode!=="grid" && <Zoom>
             <button type="button" aria-label="작게" onClick={()=>zoomBy(1/1.2)}><FontAwesomeIcon icon={minusicon}/></button>
-            <input type="range" aria-label="크기"
-                min={MIN_SCALE*100} max={MAX_SCALE*100} step="5"
-                value={displayScale}
-                onChange={(e)=>setScale(Number(e.target.value)/100)}
+            <input type="range" aria-label="크기" list="zoom-marks"
+                min={0} max={SLIDER_MAX} step="1"
+                value={Math.round(scaleToPos(scale))}
+                aria-valuetext={`${displayScale}%`}
+                onChange={(e)=>setScale(clampScale(posToScale(Number(e.target.value))))}
             />
+            {/* 가운데 눈금 = 100% */}
+            <datalist id="zoom-marks"><option value={SLIDER_MAX/2} /></datalist>
             <button type="button" aria-label="크게" onClick={()=>zoomBy(1.2)}><FontAwesomeIcon icon={plusicon}/></button>
             <Percent>
                 <input type="text" inputMode="numeric" aria-label="배율(%)"
@@ -177,7 +203,7 @@ export default function ViewBottom({
                     }}
                 />%
             </Percent>
-        </Zoom>
+        </Zoom>}
 
         <Divider />
         <NavButton type="button" disabled={total===0}
@@ -185,9 +211,9 @@ export default function ViewBottom({
             다음 <FontAwesomeIcon icon={faChevronRight}/>
         </NavButton>
 
-        <FullButton type="button" onClick={onFit} aria-pressed={fit}
+        {viewmode!=="grid" && <FullButton type="button" onClick={onFit} aria-pressed={fit}
             title="보기 영역에 꽉 맞는 최대 크기로 (F)">
             <FontAwesomeIcon icon={faExpand}/> 맞춤
-        </FullButton>
+        </FullButton>}
     </Wrapper>)
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useImages } from "@/app/(Context)/ImageProvider"
-import React from "react"
+import React, { useEffect, useRef } from "react"
 import styled from "styled-components"
 
 const Wrapper = styled.div`
@@ -17,7 +17,7 @@ const Wrapper = styled.div`
 
 const Empty = styled.p`
     margin: 24px 8px;
-    color: #8a919c;
+    color: var(--muted);
     font-size: 13px;
     line-height: 1.6;
     text-align: center;
@@ -30,15 +30,15 @@ const Row = styled.button<{ $active: boolean }>`
     gap: 10px;
     width: 100%;
     padding: 6px;
-    border: 1px solid ${({ $active }) => ($active ? "#4f46e5" : "transparent")};
+    border: 1px solid ${({ $active }) => ($active ? "var(--accent)" : "transparent")};
     border-radius: 8px;
-    background: ${({ $active }) => ($active ? "#eef2ff" : "transparent")};
+    background: ${({ $active }) => ($active ? "var(--accent-soft)" : "transparent")};
     cursor: pointer;
     text-align: left;
     font: inherit;
 
     &:hover {
-        background: ${({ $active }) => ($active ? "#eef2ff" : "#f3f4f6")};
+        background: ${({ $active }) => ($active ? "var(--accent-soft)" : "var(--bg-soft)")};
     }
 `
 
@@ -47,7 +47,7 @@ const Thumb = styled.img`
     height: 52px;
     flex-shrink: 0;
     border-radius: 6px;
-    background: #e9ecf1;
+    background: var(--bg-sunk);
     object-fit: cover;      /* 예전에는 이게 없어서 세로 그림이 눌려 보였다 */
 `
 
@@ -60,7 +60,7 @@ const Meta = styled.span`
 
 const Name = styled.span`
     font-size: 13px;
-    color: #1f2937;
+    color: var(--text);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -68,7 +68,7 @@ const Name = styled.span`
 
 const Sub = styled.span`
     font-size: 11px;
-    color: #8a919c;
+    color: var(--muted);
 `
 
 const Remove = styled.span`
@@ -80,13 +80,13 @@ const Remove = styled.span`
     align-items: center;
     justify-content: center;
     border-radius: 5px;
-    color: #8a919c;
+    color: var(--muted);
     font-size: 14px;
     line-height: 1;
 
     &:hover {
-        background: #e6e9ee;
-        color: #b4433b;
+        background: var(--line);
+        color: var(--danger);
     }
 `
 
@@ -99,11 +99,18 @@ const readableSize = (bytes: number) => {
 }
 
 export default function LeftMain({
-    Currentnumber, setCurrentnumber, }:
-    { Currentnumber: number, setCurrentnumber: React.Dispatch<React.SetStateAction<number>>; }
+    Currentnumber, setCurrentnumber, onJump }:
+    { Currentnumber: number, setCurrentnumber: React.Dispatch<React.SetStateAction<number>>; onJump: (i: number) => void }
 ) {
 
     const { images, removeImage } = useImages();
+
+    /* 지금 장이 늘 보이게 따라 내려간다 — 목록 보기에서 몇백 번째 장을 눌러 열어도 여기서 그 줄이 보인다.
+       nearest: 이미 보이면 움직이지 않고, 넘길 때는 한 줄씩만 따라간다. */
+    const active = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        active.current?.scrollIntoView({ block: "nearest" });
+    }, [Currentnumber, images.length]);
 
     if (images.length === 0) {
         return (
@@ -129,12 +136,16 @@ export default function LeftMain({
                     key={data.id}
                     type="button"
                     $active={index === Currentnumber}
-                    onClick={() => setCurrentnumber(index)}
+                    ref={index === Currentnumber ? active : undefined}
+                    aria-current={index === Currentnumber ? "true" : undefined}
+                    onClick={() => onJump(index)}   // 건너뛰기 — 뒤로가기로 돌아온다
                 >
-                    <Thumb src={data.url} alt="" />
+                    {/* lazy — 주소로 몇백 장을 불러오면 목록이 그걸 전부 한꺼번에 받으려 든다 */}
+                    <Thumb src={data.url} alt="" loading="lazy" decoding="async" />
                     <Meta>
                         <Name title={data.title}>{data.title}</Name>
-                        <Sub>{index + 1} · {readableSize(data.size)}</Sub>
+                        {/* 주소로 불러온 장은 크기를 모른다(0). 대신 묶음 이름(a, b …)을 보여 준다. */}
+                        <Sub>{[index + 1, readableSize(data.size) || data.group?.name].filter(Boolean).join(" · ")}</Sub>
                     </Meta>
                     <Remove
                         role="button"

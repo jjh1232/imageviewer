@@ -2,10 +2,6 @@
 import styled from "styled-components"
 import Leftsidebar from "./Leftsidebar"
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react"
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { faSquareCaretLeft as leftarrow } from "@fortawesome/free-solid-svg-icons"
-import { faSquareCaretRight as rightarrow } from "@fortawesome/free-solid-svg-icons"
-import Slicearrow from "@/app/(Component)/Slicearrow/page"
 import { UserImageManager } from "@/app/(Tools)/UserImageManager"
 import MainViewer from "./MainViewCom/MainViewer"
 
@@ -35,76 +31,44 @@ const MainWrapper=styled.div`
     position:relative;
     flex: 1;
     min-width: 0;              /* 이게 없으면 큰 이미지가 사이드바를 밀어낸다 */
-    margin-left: -24px;        /* 리사이저의 토글 버튼 자리만큼 당긴다 */
     height: 100%;
-    background: #f3f4f6;
+    background: var(--bg-soft);
 `
-//리사이저 콘테이너? 
-const ResizerContainer=styled.div`
-    flex-shrink: 0;//크기고정
-      display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    
-    
-`
+/*
+ * 목록 폭을 끄는 손잡이. 선은 목록의 border-right 가 그리고, 이건 그 위에 겹친 투명한 띠다 —
+ * 자리를 차지하지 않으면서(좌우 음수 margin) 잡을 폭은 7px 남긴다. 올리면 강조색 선이 보인다.
+ * 여닫는 버튼은 위 막대 맨 왼쪽으로 옮겼다(예전엔 여기 붙어 있어 뷰어의 < 버튼과 겹쳤다).
+ */
 const Resizer=styled.div<{$iscollap:boolean}>`
-    width: 8px;                // 리사이저 바 두께
-    height: 100%;
-  background: linear-gradient(90deg, #ccc, #999);  // 그라데이션 배경
-  cursor: col-resize;         // 마우스 커서: 좌우 리사이즈 모양
-  flex-shrink: 0;             // 리사이저 자체는 안 줄어듦
-  
-  display: ${({ $iscollap }) => ($iscollap ? "none" : "flex")};;        // 내부 중앙정렬
-  align-items: center;
-  justify-content: center;
-  
-  &:hover { background: linear-gradient(90deg, #999, #666); }  // 호버 효과
-  &:active { background: #555; }  // 클릭 중 효과
-
-
-
-
-`
-//==토글버튼
-const ToggleButton=styled.div<{$iscollap:boolean}>`
+    display: ${({ $iscollap }) => ($iscollap ? "none" : "block")};
     position: relative;
-    z-index: 20;
-    right: -5px;
-    top: 0%;
-    
-    transform: translateY(-50%);
-    width: 24px;
-    height: 24px;
-
-`
-//스타일드 아이콘
-const Styledicon=styled(FontAwesomeIcon)`
-    height: 100px;
+    z-index: 11;
+    flex-shrink: 0;
+    width: 7px;
+    margin: 0 -4px 0 -3px;
+    height: 100%;
+    cursor: col-resize;
+    background: linear-gradient(to right, transparent 2px, var(--hl, transparent) 2px, var(--hl, transparent) 4px, transparent 4px);
+    &:hover, &:active { --hl: var(--accent); }
 `
 export default function MainView({
-    Currentnumber,setCurrentnumber,viewmode,scale,setScale,fit,onFitRatio}:
-    {Currentnumber:number,setCurrentnumber:React.Dispatch<React.SetStateAction<number>>,
+    Currentnumber,setCurrentnumber,onJump,viewmode,scale,setScale,fit,onFitRatio,onPick,gridOpen,onOpenGroup,sideOpen}:
+    {Currentnumber:number,setCurrentnumber:React.Dispatch<React.SetStateAction<number>>,onJump:(i:number)=>void,
         viewmode:string,scale:number,setScale:React.Dispatch<React.SetStateAction<number>>,
-        fit:boolean,onFitRatio:(r:number)=>void
+        fit:boolean,onFitRatio:(r:number)=>void,onPick:(i:number)=>void,
+        gridOpen:string|null,onOpenGroup:(g:string|null)=>void,sideOpen:boolean
     }
 ){
 
     const [sidebarflexbasis,setSidebarflexbasis]=useState("15%");
     const [isResizing,setIsResizing]=useState(false)
-    const [iscollap,setiscollap]=useState(false)
+    const iscollap=!sideOpen
     const startX=useRef(0); //드래그시작x좌표
     const containerRef=useRef<HTMLDivElement>(null); //전체컨테이너참조
 
     //콜백쓸거니까..
     const Inputma=UserImageManager();
 
-    //토글핸들러
-    const toggleside=useCallback(()=>{
-        setiscollap(!iscollap)
-        setSidebarflexbasis(iscollap?"15%":"0px")
-    },[iscollap])
     //리사이저클릭시(드래그시작) 유즈콜백으로메모이제이션
     const handleMouseDown=useCallback((e:React.MouseEvent)=>{
         e.preventDefault() //기본드래그방지
@@ -151,25 +115,17 @@ const handleMouseUp=useCallback(()=>{
             {//오버플로우 있으면 스티키안된다함;
             }
             <div style={{width:"100%",height:"100%",overflow:"hidden",display:"flex"}}>
-            <Leftsidebar Currentnumber={Currentnumber} setCurrentnumber={setCurrentnumber}/>
+            <Leftsidebar Currentnumber={Currentnumber} setCurrentnumber={setCurrentnumber} onJump={onJump}/>
             </div>
             
         </SidebarWrapper>
     {/*리사이저  */}
-    <ResizerContainer >
-
-    
-    <Resizer 
-    $iscollap={iscollap}
-    onMouseDown={handleMouseDown}/>
-    <ToggleButton $iscollap={iscollap} onClick={toggleside}>
-        {iscollap?<Slicearrow mode={true}/> :<Slicearrow mode={false}/>}
-        </ToggleButton>
-    </ResizerContainer>
+    <Resizer $iscollap={iscollap} onMouseDown={handleMouseDown}/>
 
         <MainWrapper >
             <MainViewer Currentnumber={Currentnumber} setCurrentnumber={setCurrentnumber} viewmode={viewmode}
-                        scale={scale} setScale={setScale} fit={fit} onFitRatio={onFitRatio}
+                        scale={scale} setScale={setScale} fit={fit} onFitRatio={onFitRatio} onPick={onPick}
+                        gridOpen={gridOpen} onOpenGroup={onOpenGroup}
             />
         </MainWrapper>
     </Wrapper>)
