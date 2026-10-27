@@ -2,6 +2,7 @@
 import styled from "styled-components";
 import { useState } from "react";
 import Viewstructure from "./VIewComponent/Viewstructure";
+import { EditorLangProvider } from "@/app/(i18n)/EditorLang";
 
 
 
@@ -19,7 +20,7 @@ export default function ViewPage(){
     
 
     return (<Wrapper>
-        <Viewstructure />
+        <EditorLangProvider><Viewstructure /></EditorLangProvider>
     </Wrapper>
     
 )

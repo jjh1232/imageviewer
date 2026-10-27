@@ -1,5 +1,6 @@
 "use client"
 import { useImages } from "@/app/(Context)/ImageProvider"
+import { useLang } from "@/app/(i18n)/EditorLang"
 import React, { useEffect, useMemo, useRef } from "react";
 import styled from "styled-components";
 import { useBoxSize, useNatural, usePanZoom } from "./useFit";
@@ -62,6 +63,7 @@ const WebtoonView = ({ currentIndex, setCurrentIndex, scale, fit, onFitRatio }: 
     fit: boolean, onFitRatio: (r: number) => void,
 }) => {
     const { images } = useImages();
+    const { t } = useLang();
     const scroller = useRef<HTMLDivElement>(null);
     const strips = useRef<(HTMLImageElement | null)[]>([]);
     const fromScroll = useRef<string | null>(null);
@@ -122,7 +124,7 @@ const WebtoonView = ({ currentIndex, setCurrentIndex, scale, fit, onFitRatio }: 
     const aheadTo = Math.floor(currentIndex / AHEAD_STEP) * AHEAD_STEP + AHEAD;
     const list = useMemo(() => images.map((img, i) => (
         <Strip key={img.id} ref={el => { strips.current[i] = el; }}
-            src={img.url} alt={`이미지 ${i + 1}`} draggable={false}
+            src={img.url} alt={t.imageAlt(i + 1)} draggable={false}
             loading={i <= aheadTo ? "eager" : "lazy"}
             onLoad={done} onError={done} />
     )), [images, aheadTo]);

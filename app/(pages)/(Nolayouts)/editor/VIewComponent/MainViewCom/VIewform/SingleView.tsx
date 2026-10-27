@@ -1,5 +1,6 @@
 "use client"
 import { useImages } from "@/app/(Context)/ImageProvider"
+import { useLang } from "@/app/(i18n)/EditorLang"
 import React, { useEffect, useRef } from "react";
 import styled from "styled-components";
 import { useBoxSize, useNatural, usePanZoom } from "./useFit";
@@ -51,6 +52,7 @@ const SingleView = ({ currentIndex, scale, fit, onFitRatio }: {
 }) => {
 
     const { images } = useImages();
+    const { t } = useLang();
     const image = images[currentIndex];
     const box = useRef<HTMLDivElement>(null);
     const { w: bw, h: bh } = useBoxSize(box);
@@ -74,7 +76,7 @@ const SingleView = ({ currentIndex, scale, fit, onFitRatio }: {
             <Center>
                 <ImageStyle
                     src={image.url}
-                    alt={`이미지 ${currentIndex + 1}`}
+                    alt={t.imageAlt(currentIndex + 1)}
                     style={size}
                     draggable={false}
                 />

@@ -1,6 +1,7 @@
 "use client"
 
 import { useImages } from "@/app/(Context)/ImageProvider"
+import { useLang } from "@/app/(i18n)/EditorLang"
 import React, { useEffect, useRef } from "react"
 import styled from "styled-components"
 
@@ -104,6 +105,7 @@ export default function LeftMain({
 ) {
 
     const { images, removeImage } = useImages();
+    const { t } = useLang();
 
     /* 지금 장이 늘 보이게 따라 내려간다 — 목록 보기에서 몇백 번째 장을 눌러 열어도 여기서 그 줄이 보인다.
        nearest: 이미 보이면 움직이지 않고, 넘길 때는 한 줄씩만 따라간다. */
@@ -115,7 +117,7 @@ export default function LeftMain({
     if (images.length === 0) {
         return (
             <Wrapper>
-                <Empty>이미지가 없습니다.<br />위의 「파일 열기」나 주소로 불러오거나<br />여기에 끌어다 놓으세요.</Empty>
+                <Empty>{t.emptyList.map((line, i) => <React.Fragment key={i}>{i > 0 && <br />}{line}</React.Fragment>)}</Empty>
             </Wrapper>
         )
     }
@@ -149,7 +151,7 @@ export default function LeftMain({
                     </Meta>
                     <Remove
                         role="button"
-                        aria-label="목록에서 지우기"
+                        aria-label={t.removeFromList}
                         onClick={(e) => handleRemove(e, data.id, index)}
                     >
                         ×

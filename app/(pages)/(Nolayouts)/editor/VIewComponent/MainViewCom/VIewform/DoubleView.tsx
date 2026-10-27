@@ -1,5 +1,6 @@
 "use client"
 import { useImages } from "@/app/(Context)/ImageProvider"
+import { useLang } from "@/app/(i18n)/EditorLang"
 import React, { useEffect, useRef } from "react";
 import styled from "styled-components";
 import { useBoxSize, useNatural, usePanZoom } from "./useFit";
@@ -48,6 +49,7 @@ const DoubleView = ({ currentIndex, scale, fit, onFitRatio }: {
     fit: boolean, onFitRatio: (r: number) => void,
 }) => {
     const { images } = useImages();
+    const { t } = useLang();
     const left = images[currentIndex];
     const right = images[currentIndex + 1];
     const box = useRef<HTMLDivElement>(null);
@@ -74,8 +76,8 @@ const DoubleView = ({ currentIndex, scale, fit, onFitRatio }: {
     return (
         <Scroller ref={box} data-scroller>
             <Center>
-                <Page src={left.url} alt={`이미지 ${currentIndex + 1}`} style={styleOf(nl)} draggable={false} />
-                {right && <Page src={right.url} alt={`이미지 ${currentIndex + 2}`} style={styleOf(nr)} draggable={false} />}
+                <Page src={left.url} alt={t.imageAlt(currentIndex + 1)} style={styleOf(nl)} draggable={false} />
+                {right && <Page src={right.url} alt={t.imageAlt(currentIndex + 2)} style={styleOf(nr)} draggable={false} />}
             </Center>
         </Scroller>
     )

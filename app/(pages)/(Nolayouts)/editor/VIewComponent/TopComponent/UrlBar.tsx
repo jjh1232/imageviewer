@@ -1,6 +1,7 @@
 "use client"
 
 import { useImages } from "@/app/(Context)/ImageProvider";
+import { useLang } from "@/app/(i18n)/EditorLang"
 import { buildTemplateGroups, Cond, countConds, itemsFromGroups, MAX_COUNT, parseValues, pruneMissing, STOP_AFTER, templateGroupNames } from "@/app/(Tools)/UrlSequence";
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
@@ -200,6 +201,7 @@ const decode = (u: string) => { try { return decodeURI(u); } catch { return u; }
 
 export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: string) => void }) {
     const { addImages, removeImages } = useImages();
+    const { t } = useLang();
 
     const [cols, setCols] = useState<Column[]>([{ id: nextId++, name: "{1}", text: "" }]);
     const [template, setTemplate] = useState("");
@@ -233,10 +235,10 @@ export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: 
     const checked = used.map((c) => {
         const parsed = parseValues(c.text);
         const problem =
-            !c.name ? "칸 이름을 넣으세요"
-            : !c.text ? `「${c.name}」 의 값을 넣으세요`
-            : isUrl && !url.includes(c.name) ? `「${c.name}」 가 주소에 없습니다 — 바꿀 자리에 그대로 적으세요`
-            : !parsed.ok ? `「${c.name}」 · ${parsed.reason}`
+            !c.name ? t.needName
+            : !c.text ? t.needValue(c.name)
+            : isUrl && !url.includes(c.name) ? t.notInUrl(c.name)
+            : !parsed.ok ? `${t.quote(c.name)} · ${parsed.reason === "tooMany" ? t.parse.tooMany(MAX_COUNT) : t.parse[parsed.reason]}`
             : "";
         return { col: c, parsed, problem };
     });
@@ -267,13 +269,13 @@ export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: 
         const added = perGroup.reduce((n, g) => n + g.length, 0);
         addImages(perGroup.flat());
         history.replaceState(history.state, "", linkPath());   // 주소창 = 공유 링크
-        setStatus(`${added}장 넣음 · 안 열리는 번호를 빼는 중…`);
+        setStatus(t.added(added));
         let host = "";
         try { host = new URL(url).hostname; } catch { /* groups 가 있으면 주소는 맞다 */ }
         onLoaded?.(location.origin + linkPath(), groupNames[0] || host);   // 메뉴 패널을 닫고, 바로가기 링크를 넘긴다
         pruneMissing(perGroup, removeImages).then(({ kept, dropped }) => setStatus(
-            kept === 0 ? "열리는 이미지가 없습니다. 주소와 값을 확인하세요."
-            : `${kept}장${dropped ? ` (안 열리는 번호 ${dropped}개 뺌)` : ""}`
+            kept === 0 ? t.noneOpened
+            : t.kept(kept, dropped)
         ));
     };
     const handleLoad = (e: React.FormEvent) => { e.preventDefault(); load(); };
@@ -290,7 +292,7 @@ export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: 
         if (!autoLoad) return;
         setAutoLoad(false);
         if (groups.length > 0) load();
-        else setStatus(problem || "링크의 주소를 읽지 못했습니다.");
+        else setStatus(problem || t.badLink);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoLoad]);
 
@@ -298,9 +300,9 @@ export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: 
         const link = location.origin + linkPath();
         try {
             await navigator.clipboard.writeText(link);
-            setStatus("링크를 복사했습니다 — 받은 사람이 열면 같은 이미지를 불러옵니다.");
+            setStatus(t.copied);
         } catch {
-            setStatus(`복사하지 못했습니다. 직접 복사하세요: ${link}`);
+            setStatus(t.copyFailed(link));
         }
     };
 
@@ -309,12 +311,12 @@ export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: 
     const warn = !status && Boolean(problem || total > MAX_COUNT || (template && !isUrl));
     const hint =
         status
-        || (template && !isUrl && "http 로 시작하는 이미지 주소를 넣으세요.")
+        || (template && !isUrl && t.needHttp)
         || problem
-        || (total > MAX_COUNT && `${total}장 — 한 번에 ${MAX_COUNT}장까지입니다.`)
-        || (!template && "바뀌는 부분마다 칸을 만들고, 주소의 그 자리에 칸 이름을 적으세요.")
-        || (groups.length > 1 && `${total}장 · ${groups.length}묶음 · 묶음마다 연속 ${STOP_AFTER}장이 없으면 다음으로`)
-        || (groups.length === 1 && `${total}장`)
+        || (total > MAX_COUNT && t.tooMany(total, MAX_COUNT))
+        || (!template && t.intro)
+        || (groups.length > 1 && t.summaryGroups(total, groups.length, STOP_AFTER))
+        || (groups.length === 1 && t.count(total))
         || "";
 
     return (
@@ -326,23 +328,23 @@ export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: 
                         <Col key={c.id} $bad={Boolean(c.text) && Boolean(row && !row.parsed.ok)}>
                             <div className="head">
                                 <input className="name" placeholder="{1}" value={c.name}
-                                    aria-label="칸 이름" onChange={(e) => patch(c.id, { name: e.target.value })} />
-                                <button type="button" className="icon" title="이 이름을 주소에 넣기" aria-label="이 이름을 주소에 넣기"
+                                    aria-label={t.slotName} onChange={(e) => patch(c.id, { name: e.target.value })} />
+                                <button type="button" className="icon" title={t.insertName} aria-label={t.insertName}
                                     onClick={() => insertName(c.name)}>↓</button>
-                                <button type="button" className="icon del" title="칸 지우기" aria-label="칸 지우기"
+                                <button type="button" className="icon del" title={t.removeSlot} aria-label={t.removeSlot}
                                     onClick={() => removeCol(c.id)}>×</button>
                             </div>
                             <input className="val" placeholder="1..54 · a..z · red, blue" value={c.text}
-                                aria-label={`${c.name || "칸"} 값`} title="하나: MAHORA/JYH1 · 숫자 범위: 1..54 · 001..100 · 알파벳 범위: a..z · aa..zz · 단어 여러 개: happy, sad, angry"
+                                aria-label={t.slotValue(c.name)} title={t.slotValueHelp}
                                 onChange={(e) => patch(c.id, { text: e.target.value })} />
                         </Col>
                     );
                 })}
-                <AddCol type="button" onClick={addCol}>+ 바꿀 부분</AddCol>
+                <AddCol type="button" onClick={addCol}>{t.addSlot}</AddCol>
             </Cols>
 
             <Label>
-                <div>주소 <span>{names.length ? `— 바꿀 자리에 ${names.map((n) => `「${n}」`).join(" ")} 를 그대로` : "— 바꿀 자리에 칸 이름을 그대로"}</span></div>
+                <div>{t.urlLabel} <span>{names.length ? t.urlHintNames(names.map(t.quote).join(" ")) : t.urlHint}</span></div>
                 <input
                     ref={(el) => { urlInput.el = el; }}
                     type="text"
@@ -355,12 +357,12 @@ export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: 
             <Foot>
                 <Hint $warn={warn}>
                     {hint}
-                    {!status && !problem && sample && conds.length > 0 && <> · 예: {sample}</>}
+                    {!status && !problem && sample && conds.length > 0 && <> · {t.example}: {sample}</>}
                 </Hint>
                 <ShareButton type="button" disabled={groups.length === 0} onClick={copyLink}
-                    title="지금 주소와 칸을 담은 링크를 복사합니다">링크 복사</ShareButton>
+                    title={t.copyLinkTitle}>{t.copyLink}</ShareButton>
                 <LoadButton type="submit" disabled={groups.length === 0}>
-                    불러오기
+                    {t.load}
                 </LoadButton>
             </Foot>
         </Form>

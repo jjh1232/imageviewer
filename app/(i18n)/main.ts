@@ -2,21 +2,8 @@
  * 메인(소개) 화면 글. 언어를 늘리는 곳은 LOCALES 와 아래 사전 한 벌.
  * 서버 컴포넌트에서만 읽는다 — 클라이언트에서 import 하면 세 언어가 전부 번들에 실린다.
  */
-export const LOCALES = ["ko", "en", "ja"] as const;
-export type Locale = (typeof LOCALES)[number];
-
-/** 언어를 특정하지 못한 방문자를 보낼 곳. hreflang x-default 와 같은 값. */
-export const DEFAULT_LOCALE: Locale = "en";
-
-export const LOCALE_LABELS: Record<Locale, string> = {
-    ko: "한국어",
-    en: "English",
-    ja: "日本語",
-};
-
-export function isLocale(value: string): value is Locale {
-    return (LOCALES as readonly string[]).includes(value);
-}
+import type { Locale } from "./locales";
+export { LOCALES, DEFAULT_LOCALE, LOCALE_LABELS, isLocale, type Locale } from "./locales";
 
 type Section = { h: string; items: string[] };
 
@@ -26,6 +13,8 @@ type Dictionary = {
     metaTitle: string;
     metaDescription: string;
     open: string;
+    toLight: string;
+    toDark: string;
     lead: string;
     how: Section;
     examples: Section;
@@ -38,6 +27,8 @@ const ko: Dictionary = {
     metaDescription:
         "여러 장으로 나뉜 만화·웹툰·스캔본을 한 장씩, 두 장 펼침으로, 세로로 이어서 보는 이미지 뷰어. 번호가 붙은 이미지 주소를 한꺼번에 열 수 있습니다.",
     open: "이미지 뷰어 열기",
+    toLight: "밝은 화면으로",
+    toDark: "어두운 화면으로",
     lead: "여러 장으로 나뉜 만화·웹툰·스캔본을 한 화면에서 이어 보는 이미지 뷰어입니다. 한 장씩, 두 장 펼침으로, 세로로 이어서 볼 수 있습니다.",
     how: {
         h: "사용법",
@@ -69,6 +60,8 @@ const en: Dictionary = {
     metaDescription:
         "Read comics, webtoons and scans split into many files one page at a time, as two-page spreads, or as one vertical strip. Open a whole numbered series of image URLs at once.",
     open: "Open the image viewer",
+    toLight: "Switch to light",
+    toDark: "Switch to dark",
     lead: "An image viewer for comics, webtoons and scans split into many files. Read them one page at a time, as a two-page spread, or as one continuous vertical strip.",
     how: {
         h: "How to use",
@@ -100,6 +93,8 @@ const ja: Dictionary = {
     metaDescription:
         "何枚にも分かれた漫画・ウェブトゥーン・スキャン画像を、1枚ずつ・見開き・縦スクロールで読める画像ビューア。連番画像のURLをまとめて開けます。",
     open: "画像ビューアを開く",
+    toLight: "ライトモードへ",
+    toDark: "ダークモードへ",
     lead: "何枚にも分かれた漫画・ウェブトゥーン・スキャン画像を、ひとつの画面で続けて読むための画像ビューアです。1枚ずつ、見開き、縦スクロールで表示できます。",
     how: {
         h: "使い方",

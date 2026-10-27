@@ -40,7 +40,8 @@ export const isSlot = (p: Piece) => p.kind !== "text";
 export type Value = number | string;
 
 /** 값 칸 하나를 읽은 결과. */
-export type Parsed = { ok: true; values: Value[] } | { ok: false; reason: string };
+/** 실패하면 글이 아니라 종류를 돌려준다 — 글은 화면 언어에 맞춰 UrlBar 가 붙인다(editor.ts parse). */
+export type Parsed = { ok: true; values: Value[] } | { ok: false; reason: "empty" | "case" | "tooMany" };
 
 /**
  * 값 칸을 읽는다. 쉼표로 여러 개를 이어 쓸 수 있다.
@@ -57,17 +58,17 @@ export type Parsed = { ok: true; values: Value[] } | { ok: false; reason: string
  */
 export function parseValues(text: string): Parsed {
     const tokens = text.split(",").map((t) => t.trim()).filter(Boolean);
-    if (tokens.length === 0) return { ok: false, reason: "값을 넣으세요" };
+    if (tokens.length === 0) return { ok: false, reason: "empty" };
 
     const values: Value[] = [];
     for (const token of tokens) {
         const w = token.match(/^([a-z]+|[A-Z]+)\s*(?:\.\.|~)\s*([a-z]+|[A-Z]+)$/);
         if (w) {
             const upper = w[1] === w[1].toUpperCase();
-            if (upper !== (w[2] === w[2].toUpperCase())) return { ok: false, reason: "범위 양끝의 대소문자를 맞추세요" };
+            if (upper !== (w[2] === w[2].toUpperCase())) return { ok: false, reason: "case" };
             const from = wordIndex(w[1]), to = wordIndex(w[2]);
             if (Math.abs(to - from) + 1 + values.length > MAX_COUNT) {
-                return { ok: false, reason: `한 번에 ${MAX_COUNT}장까지입니다` };
+                return { ok: false, reason: "tooMany" };
             }
             const step = from <= to ? 1 : -1;
             for (let v = from; v !== to + step; v += step) values.push(indexWord(v, upper));
@@ -82,7 +83,7 @@ export function parseValues(text: string): Parsed {
         }
         const from = Number(m[1]), to = Number(m[2]);
         if (Math.abs(to - from) + 1 + values.length > MAX_COUNT) {
-            return { ok: false, reason: `한 번에 ${MAX_COUNT}장까지입니다` };
+            return { ok: false, reason: "tooMany" };
         }
         // 001..100 처럼 앞에 0 을 붙여 쓰면 그 자릿수로 채운다 (001, 002 … 100).
         const pad = /^0\d/.test(m[1]) ? m[1].length : 0;

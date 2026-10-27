@@ -1,5 +1,6 @@
 "use client"
 import { useImages } from "@/app/(Context)/ImageProvider";
+import { useLang } from "@/app/(i18n)/EditorLang"
 import { useState } from "react";
 import { clampScale, MIN_SCALE, MAX_SCALE } from "./MainViewCom/VIewform/useFit";
 import styled from "styled-components"
@@ -139,6 +140,7 @@ export default function ViewBottom({
     }
 ){
     const {images}=useImages();
+    const {t}=useLang();
     const total=images.length;
     const displayScale = Math.round(scale * 100);
 
@@ -174,15 +176,15 @@ export default function ViewBottom({
     return (<Wrapper>
         <NavButton type="button" disabled={total===0}
             onClick={prev}>
-            <FontAwesomeIcon icon={faChevronLeft}/> 이전
+            <FontAwesomeIcon icon={faChevronLeft}/> {t.prev}
         </NavButton>
 
         <Page>{pageLabel()}</Page>
         <Divider />
 
         {viewmode!=="grid" && <Zoom>
-            <button type="button" aria-label="작게" onClick={()=>zoomBy(1/1.2)}><FontAwesomeIcon icon={minusicon}/></button>
-            <input type="range" aria-label="크기" list="zoom-marks"
+            <button type="button" aria-label={t.zoomOut} onClick={()=>zoomBy(1/1.2)}><FontAwesomeIcon icon={minusicon}/></button>
+            <input type="range" aria-label={t.size} list="zoom-marks"
                 min={0} max={SLIDER_MAX} step="1"
                 value={Math.round(scaleToPos(scale))}
                 aria-valuetext={`${displayScale}%`}
@@ -190,9 +192,9 @@ export default function ViewBottom({
             />
             {/* 가운데 눈금 = 100% */}
             <datalist id="zoom-marks"><option value={SLIDER_MAX/2} /></datalist>
-            <button type="button" aria-label="크게" onClick={()=>zoomBy(1.2)}><FontAwesomeIcon icon={plusicon}/></button>
+            <button type="button" aria-label={t.zoomIn} onClick={()=>zoomBy(1.2)}><FontAwesomeIcon icon={plusicon}/></button>
             <Percent>
-                <input type="text" inputMode="numeric" aria-label="배율(%)"
+                <input type="text" inputMode="numeric" aria-label={t.zoomPercent}
                     value={draft ?? String(displayScale)}
                     onFocus={(e)=>e.target.select()}
                     onChange={(e)=>setDraft(e.target.value.replace(/[^0-9]/g,""))}
@@ -208,12 +210,12 @@ export default function ViewBottom({
         <Divider />
         <NavButton type="button" disabled={total===0}
             onClick={next}>
-            다음 <FontAwesomeIcon icon={faChevronRight}/>
+            {t.next} <FontAwesomeIcon icon={faChevronRight}/>
         </NavButton>
 
         {viewmode!=="grid" && <FullButton type="button" onClick={onFit} aria-pressed={fit}
-            title="보기 영역에 꽉 맞는 최대 크기로 (F)">
-            <FontAwesomeIcon icon={faExpand}/> 맞춤
+            title={t.fitTitle}>
+            <FontAwesomeIcon icon={faExpand}/> {t.fit}
         </FullButton>}
     </Wrapper>)
 }

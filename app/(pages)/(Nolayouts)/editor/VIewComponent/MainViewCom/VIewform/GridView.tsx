@@ -1,5 +1,6 @@
 "use client"
 import { useImages } from "@/app/(Context)/ImageProvider"
+import { useLang } from "@/app/(i18n)/EditorLang"
 import type { ImageItem } from "@/app/(Tools)/UserImageManager";
 import { useEffect, useMemo, useRef } from "react";
 import styled from "styled-components";
@@ -125,6 +126,7 @@ export default function GridView({ currentIndex, onPick, openId, onOpenGroup }: 
     openId: string | null; onOpenGroup: (id: string | null) => void;
 }) {
     const { images } = useImages();
+    const { t } = useLang();
     const groups = useMemo(() => groupImages(images), [images]);
     const single = groups.length <= 1;
 
@@ -160,8 +162,8 @@ export default function GridView({ currentIndex, onPick, openId, onOpenGroup }: 
             {!single && open && (
                 <Crumb>
                     {/* 뒤로가기(위 막대 ←)와 다르다 — 왔던 길이 아니라 늘 묶음 화면으로 간다. 그래서 화살표 없이 위치 표시로. */}
-                    <button type="button" onClick={() => onOpenGroup(null)}>전체</button>
-                    › <b>{open.name}</b> · {open.items.length}장
+                    <button type="button" onClick={() => onOpenGroup(null)}>{t.gridAll}</button>
+                    › <b>{open.name}</b> · {t.count(open.items.length)}
                 </Crumb>
             )}
             <Grid>
@@ -180,7 +182,7 @@ export default function GridView({ currentIndex, onPick, openId, onOpenGroup }: 
                             <Cell type="button" $on={g.id === currentGroup} ref={g.id === currentGroup ? current : undefined}
                                 onClick={() => onOpenGroup(g.id)} title={g.name}>
                                 <Thumb $stack><img src={g.items[0].img.url} alt={g.name} loading="lazy" decoding="async" /></Thumb>
-                                <Label><span>{g.name}</span><b>{g.items.length}장</b></Label>
+                                <Label><span>{g.name}</span><b>{t.count(g.items.length)}</b></Label>
                             </Cell>
                         </li>
                     ))}

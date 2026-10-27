@@ -1,5 +1,6 @@
 "use client"
 import { useImages } from "@/app/(Context)/ImageProvider"
+import { useLang } from "@/app/(i18n)/EditorLang"
 import React, { useCallback, useEffect, useRef } from "react"
 import SingleView from "./VIewform/SingleView";
 import DoubleView from "./VIewform/DoubleView";
@@ -63,6 +64,7 @@ export default function MainViewer({
 ){
 
     const {images}=useImages(); //id,url,title,type,size
+    const {t}=useLang();
     const totalimages=images.length;
     const isempty=totalimages===0;
 
@@ -153,15 +155,15 @@ export default function MainViewer({
     return (
         <Wrapper ref={area}>
         {isempty
-            ? <Empty>위에서 파일이나 주소로 이미지를 불러오세요.</Empty>
+            ? <Empty>{t.emptyViewer}</Empty>
             : Viewmoderender()
         }
         {showSides && <>
-            <Side type="button" $side="left" aria-label="이전 장" title="이전 장 (←)"
+            <Side type="button" $side="left" aria-label={t.prevPage} title={`${t.prevPage} (←)`}
                 disabled={Currentnumber<=0} onClick={()=>go(-1)}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
             </Side>
-            <Side type="button" $side="right" aria-label="다음 장" title="다음 장 (→)"
+            <Side type="button" $side="right" aria-label={t.nextPage} title={`${t.nextPage} (→)`}
                 disabled={Currentnumber>=totalimages-1} onClick={()=>go(1)}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
             </Side>

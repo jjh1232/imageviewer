@@ -4,6 +4,8 @@ import { useImages } from "@/app/(Context)/ImageProvider"
 import { UserImageManager } from "@/app/(Tools)/UserImageManager"
 import UrlBar from "./TopComponent/UrlBar"
 import ThemeToggle from "@/app/(Component)/ThemeToggle"
+import { useLang } from "@/app/(i18n)/EditorLang"
+import { LOCALES, LOCALE_LABELS, type Locale } from "@/app/(i18n)/locales"
 import { useEffect, useRef, useState } from "react"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faTableColumns, faLink } from "@fortawesome/free-solid-svg-icons"
@@ -172,12 +174,21 @@ const Mode=styled.button<{ $on: boolean }>`
 
 type ViewModes = "single"|"double"|"webtoon"|"grid" //유니온타입은string안되네
 
-const modes=[
-    {key:"single" as ViewModes,label:"싱글"},
-    {key:"double" as ViewModes,label:"더블"},
-    {key:"webtoon" as ViewModes,label:"웹툰"},
-    {key:"grid" as ViewModes,label:"목록"}
-]
+const modes:ViewModes[]=["single","double","webtoon","grid"]
+
+/* 언어 고르기(EditorLang). 테마 버튼 옆. */
+const LangSelect = styled.select`
+    flex-shrink: 0;
+    height: 32px;
+    padding: 0 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    &:hover { background: var(--bg-soft); }
+`
 
 export default function ViewTop({
     viewmode,setViewmode,onBack,canBack,sideOpen,onToggleSide,onCleared}:
@@ -186,6 +197,7 @@ export default function ViewTop({
 ){
     const {addImages}=useImages();
     const {inputimages}=UserImageManager();
+    const {t,lang,setLang}=useLang();
     const [shortcut,setShortcut]=useState<{link:string,title:string}|null>(null);   // 마지막으로 주소로 불러온 것
     const [urlReset,setUrlReset]=useState(0);   // 비우기마다 올린다 — 주소 패널을 새로 만들어 칸을 비운다
 
@@ -197,31 +209,35 @@ export default function ViewTop({
 
     return (<Wrapper>
         <SideButton type="button" onClick={onToggleSide} aria-pressed={sideOpen}
-            title={sideOpen ? "파일 목록 닫기 (L)" : "파일 목록 열기 (L)"} aria-label="파일 목록">
+            title={sideOpen ? t.hideFileList : t.showFileList} aria-label={t.fileList}>
             <FontAwesomeIcon icon={faTableColumns}/>
         </SideButton>
         <BackButton type="button" onClick={onBack} disabled={!canBack}
-            title="뒤로 (Esc)" aria-label="뒤로">←</BackButton>
-        <FileButton htmlFor="inputbutton">파일 열기</FileButton>
+            title={`${t.back} (Esc)`} aria-label={t.back}>←</BackButton>
+        <FileButton htmlFor="inputbutton">{t.openFiles}</FileButton>
         <HiddenFileInput id="inputbutton" onChange={handleFiles}/>
 
         <UrlMenu key={urlReset} onLoaded={(link,title)=>setShortcut({link,title})} />
         <ShortcutButton type="button" disabled={!shortcut}
-            onClick={()=>shortcut && downloadShortcut(shortcut.link, shortcut.title)}
-            title={shortcut ? "마지막으로 주소로 불러온 것을 다시 여는 .html 파일을 내려받습니다 — 사진은 담기지 않습니다" : "주소로 불러온 뒤에 쓸 수 있습니다"}>
-            <FontAwesomeIcon icon={faLink}/> 바로가기 저장
+            onClick={()=>shortcut && downloadShortcut(shortcut.link, shortcut.title, t)}
+            title={shortcut ? t.saveShortcutTitle : t.saveShortcutOff}>
+            <FontAwesomeIcon icon={faLink}/> {t.saveShortcut}
         </ShortcutButton>
         <ClearAll onCleared={()=>{ setUrlReset(n=>n+1); onCleared(); }} />
         <Spacer />
 
         <Modes>
-            {modes.map(({key,label})=>(
+            {modes.map((key)=>(
                 <Mode key={key} type="button" $on={viewmode===key} onClick={()=>setViewmode(key)}>
-                    {label}
+                    {t.modes[key]}
                 </Mode>
             ))}
         </Modes>
-        <ThemeButton />
+        <LangSelect value={lang} aria-label={t.language} title={t.language}
+            onChange={(e)=>setLang(e.target.value as Locale)}>
+            {LOCALES.map((l)=><option key={l} value={l}>{LOCALE_LABELS[l]}</option>)}
+        </LangSelect>
+        <ThemeButton labels={{ toLight: t.toLight, toDark: t.toDark }} />
     </Wrapper>)
 }
 
@@ -233,6 +249,7 @@ export default function ViewTop({
 function UrlMenu({ onLoaded }: { onLoaded: (link: string, title: string) => void }) {
     const [open, setOpen] = useState(false);
     const box = useRef<HTMLDivElement>(null);
+    const { t } = useLang();
 
     useEffect(() => {
         if (!open) return;
@@ -253,10 +270,10 @@ function UrlMenu({ onLoaded }: { onLoaded: (link: string, title: string) => void
     return (
         <div ref={box}>
             <UrlButton type="button" $open={open} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-                주소로 불러오기
+                {t.openUrl}
             </UrlButton>
-            <Panel hidden={!open} role="dialog" aria-label="주소로 불러오기">
-                <PanelTitle>주소로 불러오기</PanelTitle>
+            <Panel hidden={!open} role="dialog" aria-label={t.openUrl}>
+                <PanelTitle>{t.openUrl}</PanelTitle>
                 <UrlBar onLoaded={(link, title) => { setOpen(false); onLoaded(link, title); }} />
             </Panel>
         </div>
@@ -270,6 +287,7 @@ function UrlMenu({ onLoaded }: { onLoaded: (link: string, title: string) => void
  */
 function ClearAll({ onCleared }: { onCleared: () => void }) {
     const { images, clearImages } = useImages();
+    const { t } = useLang();
     const [armed, setArmed] = useState(false);
     useEffect(() => {
         if (!armed) return;
@@ -287,8 +305,8 @@ function ClearAll({ onCleared }: { onCleared: () => void }) {
 
     return (
         <ClearButton type="button" $armed={armed} disabled={images.length === 0} onClick={click}
-            title="불러온 사진을 모두 뺍니다">
-            {armed ? `${images.length}장 모두 비우기?` : "비우기"}
+            title={t.clearTitle}>
+            {armed ? t.clearConfirm(images.length) : t.clear}
         </ClearButton>
     );
 }

@@ -32,7 +32,7 @@ export default async function MainLayout({ children, params }: LayoutProps<"/[la
                             {LOCALE_LABELS[l]}
                         </a>
                     ))}
-                    <ThemeToggle className="MAINLAYOUT-theme" />
+                    <ThemeToggle className="MAINLAYOUT-theme" labels={{ toLight: t.toLight, toDark: t.toDark }} />
                 </nav>
             </header>
 

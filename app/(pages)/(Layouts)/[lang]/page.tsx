@@ -28,7 +28,8 @@ export default async function Main({ params }: PageProps<"/[lang]">) {
     return (
         <article className="MAINBOX">
             {/* 제목보다 먼저 둔다 — 오른쪽 위에 떠 있고 글이 그 옆과 아래로 감아 흐른다. */}
-            <a href="/editor" className="MAINBOX-open">{t.open} →</a>
+            {/* 뷰어가 이 언어로 열리게 알려 준다 — 뷰어는 기억하고 주소에서 뗀다(EditorLang) */}
+            <a href={`/editor?lang=${lang}`} className="MAINBOX-open">{t.open} →</a>
 
             <h1>{t.tagline}</h1>
             <p className="MAINBOX-lead">{t.lead}</p>

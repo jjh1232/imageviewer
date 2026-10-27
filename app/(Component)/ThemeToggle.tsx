@@ -15,7 +15,7 @@ function currentTheme(): Theme {
  * 밝게 ↔ 어둡게 전환 버튼. 누르면 <html data-theme> 을 바꾸고 기억한다.
  * 색 자체는 globals.css 의 변수가 바뀌어 따라온다.
  */
-export default function ThemeToggle({ className }: { className?: string }) {
+export default function ThemeToggle({ className, labels }: { className?: string; labels: { toLight: string; toDark: string } }) {
     // 서버에서는 테마를 모른다. 붙은 뒤에 읽어 아이콘을 맞춘다.
     const [theme, setTheme] = useState<Theme | null>(null);
     useEffect(() => setTheme(currentTheme()), []);
@@ -27,7 +27,7 @@ export default function ThemeToggle({ className }: { className?: string }) {
         setTheme(next);
     };
 
-    const label = theme === "dark" ? "밝은 화면으로" : "어두운 화면으로";
+    const label = theme === "dark" ? labels.toLight : labels.toDark;
     return (
         <button type="button" className={className} onClick={toggle} title={label} aria-label={label}>
             {theme === "dark" ? "☀️" : "🌙"}
