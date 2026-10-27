@@ -2,11 +2,16 @@
   "name": "imageviewer",
   "version": "0.1.0",
   "private": true,
+  "description": "만화·웹툰 이미지 뷰어 — prelaps.com/imageviewer. Next.js 정적 내보내기(out/) → Workers Static Assets.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "build": "next build && node scripts/check-out.mjs",
+    "check": "tsc --noEmit",
+    "check:out": "node scripts/check-out.mjs",
+    "lint": "eslint",
+    "og": "\"${CHROME:-/c/Program Files/Google/Chrome/Application/chrome.exe}\" --headless --disable-gpu --screenshot=\"$PWD/public/og.png\" --window-size=1200,630 --hide-scrollbars \"file:///$PWD/scripts/og.html\"",
+    "preview": "wrangler dev",
+    "deploy": "npm run build && npx wrangler deploy"
   },
   "dependencies": {
     "@fortawesome/free-solid-svg-icons": "^7.1.0",

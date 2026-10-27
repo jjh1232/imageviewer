@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/* ── 색 ──────────────────────────────────────────────────────
+ *
+ * 값은 prelaps 토스풍(헌법 §12, styles/global.css)에서 옮겼다 — 색을 새로 고르지 말 것.
+ * 이름이 다른 것은 뷰어가 막대·패널이 많은 앱 화면이라서다(--bg 가 여기선 카드, 저기선 바닥).
+ *
+ * 화면의 색은 전부 여기 변수로 쓴다. 다크 모드는 이 값만 바꾼다.
+ *   기본           시스템 설정을 따른다 (prefers-color-scheme)
+ *   data-theme     전환 버튼으로 고르면 <html> 에 붙는다 — 시스템 설정보다 우선
+ * 고른 값은 localStorage 에 남고, editor/layout.tsx 의 짧은 스크립트가 첫 그림 전에 붙인다
+ * (안 그러면 어두운 설정인데 흰 화면이 한 번 번쩍인다).
+ */
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-page: #f2f4f6;
+  --bg-side: #ffffff;
+  --bg-soft: #f2f4f6;
+  --bg-sunk: #e9ecef;
+  --line: #e5e8eb;
+  --line-strong: #d1d6db;
+  --line-dash: #b0b8c1;
+  --text: #191f28;
+  --text-2: #4e5968;
+  --muted: #5f6b7a;
+  --placeholder: #8b95a1;
+  --accent: #1b64da;
+  --accent-strong: #1957c2;
+  --accent-soft: #e8f3ff;
+  --on-accent: #ffffff;   /* accent 바탕 위 글자 */
+  --warn: #9a6b12;
+  --warn-text: #9a6b12;
+  --danger: #e5322d;
+  --shadow: rgba(0, 23, 51, .12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #222229;
+    --bg-page: #17171c;
+    --bg-side: #222229;
+    --bg-soft: #2c2c35;
+    --bg-sunk: #33333d;
+    --line: #2f2f39;
+    --line-strong: #3c3c47;
+    --line-dash: #55555f;
+    --text: #ececf0;
+    --text-2: #c4c4cc;
+    --muted: #9e9eab;
+    --placeholder: #77778a;
+    --accent: #5b9cf8;
+    --accent-strong: #7fb2fa;
+    --accent-soft: #1a2a44;
+    --on-accent: #0b1a33;
+    --warn: #d7ab5e;
+    --warn-text: #d7ab5e;
+    --danger: #f0736e;
+    --shadow: rgba(0, 0, 0, .5);
+  }
+}
+
+/* 위와 같은 값. 시스템이 밝아도 버튼으로 어둡게 고른 경우. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #222229;
+  --bg-page: #17171c;
+  --bg-side: #222229;
+  --bg-soft: #2c2c35;
+  --bg-sunk: #33333d;
+  --line: #2f2f39;
+  --line-strong: #3c3c47;
+  --line-dash: #55555f;
+  --text: #ececf0;
+  --text-2: #c4c4cc;
+  --muted: #9e9eab;
+  --placeholder: #77778a;
+  --accent: #5b9cf8;
+  --accent-strong: #7fb2fa;
+  --accent-soft: #1a2a44;
+  --on-accent: #0b1a33;
+  --warn: #d7ab5e;
+  --warn-text: #d7ab5e;
+  --danger: #f0736e;
+  --shadow: rgba(0, 0, 0, .5);
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--text);
+}

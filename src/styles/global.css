@@ -1,0 +1,274 @@
+/* 도구의 얼굴 — 헌법 §12. 2026-10-19 에 토스풍으로 바꿨다(이전: 남색·실선 테두리, idphoto 에서 복사).
+   색을 새로 고르지 말 것 — 도구마다 얼굴이 다르면 도메인 단위로 쌓여야 할 신뢰가 갈린다.
+
+   Next.js 가 이 파일을 번들해 /imageviewer/_next/static/… 로 내보낸다.
+   url() 로 public/ 파일을 가리킬 때는 basePath 가 안 붙으므로 /imageviewer/… 를 직접 적는다. */
+:root {
+  /* 회색 바닥 위에 흰 카드. 테두리 대신 면의 차이로 나눈다. */
+  --bg: #f2f4f6;             /* 바닥 · 보조 버튼 */
+  --bg-soft: #ffffff;        /* 카드(.panel) */
+  --fg: #191f28;
+  --fg-muted: #5f6b7a;       /* 회색 바닥 위에서도 4.5:1 을 넘는 가장 연한 값 */
+  --border: #e5e8eb;
+  --accent: #1b64da;         /* 토스 블루(#3182f6)는 흰 글자 대비 3.6 이라 한 단계 진하게. 5.4:1 */
+
+  /* 허브에 없는 것만 여기서 더한다. 허브에 같은 쓰임이 생기면 그쪽으로 옮긴다. */
+  --accent-fg: #ffffff;      /* 강조 버튼 위의 글자 */
+  --accent-soft: #e8f3ff;    /* 고른 값 · 결과 요약 바탕 */
+  --err: #e5322d;
+  --warn: #9a6b12;
+  --warn-soft: #fff6e4;      /* 결과가 늘었을 때의 요약 바탕 */
+  --field: #f2f4f6;          /* 입력칸 바탕. 흰 카드 위에서 회색으로 채워야 눌리는 칸으로 읽힌다 */
+
+  --rule: #f2f4f6;           /* 칸 안쪽을 슬쩍 나눌 때만 쓰는 연한 선 */
+
+  /* 곡률을 하나의 값으로 전부에 두르지 않는다 — 그러면 스티커를 붙인 화면이 된다. */
+  --radius: 12px;            /* 버튼·칩 */
+  --radius-sm: 10px;         /* 입력칸 */
+  --radius-lg: 20px;         /* 카드 */
+
+  /* 측정값(px·mm·dpi·KB) 전용. 숫자 폭이 고정이라 값이 바뀌어도 칸이 안 흔들린다. */
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", "Roboto Mono",
+          Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17171c;
+    --bg-soft: #222229;
+    --fg: #ececf0;
+    --fg-muted: #9e9eab;
+    --border: #2f2f39;
+    --accent: #5b9cf8;   /* 어두운 바탕에서 진한 파랑은 묻힌다. 같은 계열을 밝혀 올린다 */
+    --rule: #2c2c35;
+
+    /* 다크의 accent 는 밝은 쪽이라 그 위 글자는 반대로 어두워야 한다. */
+    --accent-fg: #0b1a33;
+    --accent-soft: #1a2a44;
+    --err: #f0736e;
+    --warn: #d7ab5e;
+    --warn-soft: #272013;
+    --field: #2c2c35;
+  }
+}
+
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+
+/* **이 줄이 없으면 hidden 속성이 조용히 안 먹는다.**
+   `.row { display: flex }` 같은 작성자 스타일이 브라우저 기본 `[hidden] { display: none }`
+   을 이겨서, 숨겼다고 생각한 칸이 그대로 보인다. 실제로 「원본 유지」인데 크기 입력칸이
+   떠 있어서, 값을 넣어도 아무 일이 없는(모드가 keep 이니 당연한) 화면이 나왔다.
+   race 의 styles.css 에도 같은 사고 기록이 있다 — 거기서는 결과창이 무대를 덮었다. */
+[hidden] { display: none !important; }
+
+/* 화면을 꽉 채우고 푸터를 바닥에 붙인다. 파일을 넣기 전에는 본문이 짧아서
+   그냥 두면 푸터가 화면 한가운데로 올라와 붙는다 — 페이지가 거기서 끝난 것처럼 보인다. */
+body {
+  margin: 0; padding: 20px 20px 40px;
+  min-height: 100vh;
+  min-height: 100dvh;   /* 모바일 주소창이 접힐 때 100vh 는 화면보다 커진다 */
+  display: flex; flex-direction: column;
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.65 system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo",
+        "Noto Sans KR", "Hiragino Sans", sans-serif;
+}
+/* 푸터의 margin-top:auto 가 먹으려면 그 부모도 세로 flex 여야 한다. */
+.wrap { max-width: 1060px; margin: 0 auto; width: 100%; flex: 1; display: flex; flex-direction: column; }
+
+/* 제목 위 구석의 허브 링크. 도구가 prelaps 안에 있다는 걸 알리는 유일한 표시이고,
+   검색엔진에게도 이 페이지가 어디 속하는지 알려주는 내부 링크다. */
+.home {
+  display: inline-block;
+  color: var(--fg-muted); text-decoration: none;
+  font-size: 12px; letter-spacing: .06em; text-transform: lowercase;
+  margin-bottom: 2px;
+}
+.home:hover { color: var(--fg); }
+
+header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px; margin-bottom: 14px;
+}
+h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -0.01em; }
+.tagline { color: var(--fg-muted); font-size: 14px; margin: 0; }
+.langs { display: flex; gap: 12px; font-size: 13px; flex: none; padding-top: 3px; }
+.langs a { color: var(--fg-muted); text-decoration: none; }
+.langs a[aria-current="true"] { color: var(--fg); font-weight: 600; }
+.langs a:hover { color: var(--fg); }
+
+/* ── 배지 ────────────────────────────────────────── */
+.badges {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  list-style: none; margin: 0 0 16px; padding: 0;
+}
+.badges li {
+  font-size: 13px; font-weight: 600;
+  color: var(--accent); background: var(--accent-soft);
+  border-radius: 999px; padding: 4px 12px;
+}
+
+/* ── 공통 조각 ───────────────────────────────────── */
+/* 보조 버튼은 테두리 없는 회색 면. 테두리 자리(transparent)는 남겨 둬서 상태가 바뀌어도 크기가 안 흔들린다. */
+button {
+  background: var(--bg); color: var(--fg); border: 1px solid transparent;
+  border-radius: var(--radius); padding: 9px 16px; font: inherit; font-weight: 600;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { filter: brightness(.96); }
+/* 고른 값. 연한 파랑 바탕에 파란 글자 — 진한 칠은 「내려받기」 하나에만 남겨 둔다. */
+button.on {
+  background: var(--accent-soft); color: var(--accent);
+}
+button:disabled { opacity: .45; cursor: default; }
+button.sm { padding: 6px 12px; font-size: 13px; }
+/* 화면의 주인공. 크고 넓게 — 무엇을 누르면 끝나는지가 한눈에 보여야 한다. */
+button.primary {
+  background: var(--accent); color: var(--accent-fg);
+  font-weight: 700; font-size: 17px; padding: 15px 20px; border-radius: 16px; width: 100%;
+}
+button.primary:hover:not(:disabled) { filter: brightness(1.1); }
+/* 드롭 영역 안의 "파일 선택". 버튼이지만 글자처럼 보여야 영역 전체가 클릭 대상인 인상을 안 깬다. */
+.linkish {
+  background: none; border: none; padding: 0;
+  color: var(--accent); text-decoration: underline; font: inherit;
+}
+.linkish:hover { background: none; filter: brightness(1.15); }
+.lb { color: var(--fg-muted); font-size: 12px; }
+.note { color: var(--fg-muted); font-size: 12px; margin: 8px 0 0; }
+.note.warn { color: var(--warn); }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+kbd {
+  font: inherit; font-size: 11px; background: var(--bg-soft); border: 1px solid var(--border);
+  border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: var(--fg-muted);
+}
+
+/* ── 2단 레이아웃 ────────────────────────────────── */
+/* 왼쪽은 넣는 곳(드롭 + 파일 목록), 오른쪽은 바꾸는 값과 그 결과다.
+   목록이 100장까지 길어지므로 오른쪽 칸은 sticky 로 붙여 둔다 —
+   스크롤해 내려가도 「변환」과 「zip 받기」가 화면에 남아야 한다. */
+.layout { display: flex; gap: 16px; align-items: flex-start; }
+.main { flex: 1; min-width: 0; }
+.side { width: 300px; flex: none; position: sticky; top: 20px; }
+
+.panel {
+  background: var(--bg-soft); border: 0;
+  border-radius: var(--radius-lg); padding: 20px 22px; margin-bottom: 12px;
+}
+/* 카드 제목은 작은 회색 라벨이 아니라 굵은 질문처럼 — 「어디에 낼 사진인가요?」 */
+.panel h2 {
+  font-size: 17px; color: var(--fg); margin: 0 0 12px;
+  font-weight: 700; letter-spacing: -.01em;
+}
+
+/* ── 설정 ────────────────────────────────────────── */
+.set { margin-bottom: 16px; }
+.set:last-child { margin-bottom: 0; }
+.seg { display: flex; gap: 5px; flex-wrap: wrap; }
+.row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.num {
+  width: 84px; text-align: center; font-variant-numeric: tabular-nums;
+  background: var(--field); color: var(--fg); border: 1px solid transparent;
+  border-radius: var(--radius-sm); padding: 7px 9px; font: inherit; font-size: 14px;
+}
+.num:focus { outline: none; border-color: var(--accent); }
+.range { width: 100%; accent-color: var(--accent); }
+.range:disabled { opacity: .45; }
+
+/* ── 설명 ────────────────────────────────────────── */
+.about { margin-top: 34px; max-width: 720px; }
+.about h2 { font-size: 16px; margin: 22px 0 6px; }
+.about p { color: var(--fg); margin: 0 0 10px; }
+.about ul { color: var(--fg); margin: 0 0 10px; padding-left: 20px; }
+
+/* auto 라서 위쪽 남는 자리를 전부 밀어낸다 — 본문이 짧으면 바닥, 길면 내용 바로 뒤. */
+footer { margin-top: auto; padding-top: 32px; color: var(--fg-muted); font-size: 13px; }
+footer a { color: var(--fg-muted); }
+
+/* 좁아지면 2단이 풀린다. 오른쪽 칸이 위로 올라가면 파일을 넣기도 전에 설정부터
+   보이게 되므로, 순서를 뒤집어 드롭 영역이 먼저 오게 한다. */
+@media (max-width: 780px) {
+  .layout { flex-direction: column; }
+  .side { width: 100%; position: static; }
+  .file { flex-wrap: wrap; }
+  .fmeta { flex-basis: calc(100% - 56px); }
+  .fsize { margin-left: 56px; }
+  .dl { margin-left: auto; }
+}
+
+/* 가로×세로는 칸이 둘이라 좁혀야 300px 칸 안에서 "1200 × 900 px" 가 한 줄에 선다. */
+.num::placeholder { color: var(--fg-muted); opacity: .7; }
+
+/* 체크박스 한 줄. 글자를 눌러도 켜지도록 label 로 감싼다. */
+.check {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 10px; font-size: 12.5px; color: var(--fg-muted); cursor: pointer;
+}
+.check input { accent-color: var(--accent); margin: 0; }
+
+/* FAQ 질문. h2 보다 작고 본문보다 굵어야 목록처럼 훑을 수 있다. */
+.about h3 { font-size: 14px; margin: 16px 0 4px; }
+.about a { color: var(--accent); }
+
+/* 설명을 접어 둔다. 도구 아래에 글이 길게 깔리면 화면이 덕지덕지해진다.
+   **<details> 를 쓰는 것이 중요하다** — 글이 처음부터 HTML 안에 있어서 접혀 있어도
+   그대로 색인된다. 자바스크립트로 나중에 끼워 넣으면 크롤러가 못 보고, 그러면
+   도구 페이지가 「UI 라벨 서른 단어」짜리 얇은 페이지가 된다 (헌법 §5 · 애드센스).
+   덤으로 JS 가 한 줄도 필요 없고 키보드·스크린리더도 브라우저가 알아서 처리한다. */
+.about details { border-top: 1px solid var(--border); }
+.about details:last-of-type { border-bottom: 1px solid var(--border); }
+.about summary {
+  cursor: pointer; padding: 13px 0;
+  display: flex; align-items: center; gap: 10px;
+  list-style: none;                          /* 기본 삼각형을 지운다 */
+}
+.about summary::-webkit-details-marker { display: none; }   /* 사파리용 */
+.about summary:hover h2 { color: var(--accent); }
+/* h2 를 summary 안에 넣어 제목 구조를 지킨다 — 접혀 있어도 목차 신호는 남는다. */
+.about summary h2 { margin: 0; font-size: 15px; font-weight: 600; }
+/* 열림 표시는 글자로 그린다. 아이콘 파일을 하나 더 두지 않으려는 것이다. */
+.about summary::after {
+  content: '+'; margin-left: auto;
+  color: var(--fg-muted); font-size: 17px; line-height: 1;
+}
+.about details[open] summary::after { content: '−'; }
+/* 펼친 내용은 제목 줄과 붙지 않게 살짝 띄우고, 아래로도 숨 쉴 자리를 준다. */
+.about details > :not(summary) { margin-bottom: 10px; }
+.about details > :last-child { margin-bottom: 18px; }
+.about details h3:first-of-type { margin-top: 0; }
+
+/* ─────────────────────────────────────────────────────────────
+ * 얼굴 — 2026-10-19 토스풍. 헌법 §12 「도구의 얼굴」 참고. (이전 판 2026-09-16: 남색·실선)
+ *
+ *  1. **회색 바닥 위에 흰 카드.** 테두리를 거의 안 긋고 면의 차이로 나눈다.
+ *  2. **곡률이 크다.** 카드 20 · 버튼 12 · 입력칸 10 · 주 버튼 16.
+ *  3. **진한 파랑은 주 버튼 하나에만.** 고른 값은 연한 파랑 바탕 + 파란 글자.
+ *  4. **제목이 크고 굵다.** 카드 제목도 작은 회색 라벨이 아니라 굵은 문장.
+ *  5. **말투는 「~해요」.** 색만 바꾸면 반만 바뀐다 — locales 문구도 같이 맞춘다.
+ *
+ * 폰트는 여전히 시스템 스택이다(§12 「한글 웹폰트를 싣지 않는다」). 그래서 윈도우(맑은 고딕)에서는
+ * 맥보다 덜 토스 같다 — 알고 둔 차이다.
+ * ───────────────────────────────────────────────────────────── */
+
+/* ── 글자 ────────────────────────────────────────────────────── */
+
+body { font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; letter-spacing: -.01em; }
+
+h1 { font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1.3; }
+.tagline { font-size: 16px; color: var(--fg-muted); }
+.home { font-size: 13px; font-weight: 700; letter-spacing: 0; }
+
+.about details { border-top-color: var(--border); }
+.about details:last-of-type { border-bottom-color: var(--border); }
+
+/* ── imageviewer 만 ─────────────────────────────── */
+/* 소개 화면에는 도구 본체가 없다(뷰어는 /editor). 그 입구 카드와 주 버튼. */
+.intro { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.intro p { margin: 0; flex: 1 1 320px; }
+.open {
+  display: inline-block; flex: none;
+  background: var(--accent); color: var(--accent-fg);
+  border-radius: 16px; padding: 14px 26px;
+  font-weight: 700; text-decoration: none;
+}
+.open:hover { filter: brightness(1.1); }
