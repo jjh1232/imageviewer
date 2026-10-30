@@ -69,8 +69,8 @@ export default function MainViewer({
     const isempty=totalimages===0;
 
     /*
-     * 보던 장을 번호가 아니라 사진으로 붙잡는다. 주소 불러오기는 넣은 뒤에 뒤에서 빈 번호를 빼므로
-     * (UrlSequence 「먼저 넣고, 뒤에서 뺀다」) 앞쪽이 빠지면 같은 번호가 다른 사진이 된다.
+     * 보던 장을 번호가 아니라 사진으로 붙잡는다. 주소 불러오기는 한 번 안 열려 다시 본 장을
+     * 늦게 제자리에 끼워 넣으므로(UrlSequence loadOpening) 앞쪽에 끼면 같은 번호가 다른 사진이 된다.
      * 목록이 바뀌었을 때만 옮긴다 — 넘겨서 번호가 바뀐 것까지 되돌리면 안 된다.
      */
     const viewing=useRef<string|undefined>(undefined);

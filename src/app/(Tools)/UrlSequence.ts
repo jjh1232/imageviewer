@@ -10,7 +10,7 @@ import type { ImageItem, ImageGroup } from "./UserImageManager";
  *   왼쪽 숫자가 바깥 반복  ep3 의 001~100 → ep4 의 001~100 → …
  *
  * 회차마다 장수가 다르므로 안쪽(맨 오른쪽 고른 숫자)은 넉넉히 잡게 하고,
- * 연속으로 STOP_AFTER 장이 안 열리면 그 회차를 끝낸다.
+ * 열리는 번호만 목록에 넣는다(loadOpening). 범위는 끝까지 본다.
  *
  * 001 처럼 0 이 앞에 붙어 있으면 자릿수를 지킨다 (001, 002 … 100).
  */
@@ -18,11 +18,11 @@ import type { ImageItem, ImageGroup } from "./UserImageManager";
 /** 한 번에 만들 수 있는 최대 장수. 실수로 1~1000000 을 넣는 걸 막는다. */
 export const MAX_COUNT = 3000;
 
-/** 안쪽 범위에서 연속으로 이만큼 안 열리면 다음 바깥 번호로 넘어간다. */
-export const STOP_AFTER = 5;
+/** 동시에 열어볼 주소 수. 너무 많으면 상대 서버가 막는다(6 일 때 40장 언저리에서 막힌 적이 있다). */
+const CONCURRENCY = 3;
 
-/** 동시에 열어볼 주소 수. 너무 많으면 상대 서버가 막는다. */
-const CONCURRENCY = 6;
+/** 한 번 안 열린 주소를 다시 보기 전에 쉬는 시간. 요청 제한이 풀리길 기다린다. */
+const RETRY_DELAY_MS = 2000;
 
 /** 한 장을 기다리는 최대 시간. */
 const TIMEOUT_MS = 15000;
@@ -260,11 +260,15 @@ function titleOf(url: string): string {
 }
 
 /*
- * 불러오기는 두 단계다 — 먼저 넣고, 뒤에서 뺀다.
+ * 불러오기 — 열리는 것만 넣는다.
  *
- * 예전에는 전부 열어 본 뒤에 넣어서, 몇백 장이면 「확인 중」 을 한참 기다려야 첫 장이 보였다.
- * 지금은 만든 주소를 **확인 없이 바로** 넣어 첫 장을 곧장 보여 주고(itemsFromGroups),
- * 뒤에서 열어 보며 안 열리는 번호를 빼 나간다(pruneMissing). si-ran.com/preview 가 이렇게 한다.
+ * 만든 주소를 앞에서부터 열어 보고, **열린 것만** 순서대로 목록에 붙인다(add).
+ * 안 열리는 번호는 처음부터 목록에 없다 — 보는 사람에게 깨진 그림(X)이 보일 일이 없다.
+ *
+ * 지나온 방식 둘:
+ *  - 전부 열어 본 뒤에 넣기 — 몇백 장이면 「확인 중」을 한참 기다려야 첫 장이 보였다.
+ *  - 확인 없이 다 넣고 뒤에서 빼기 — 첫 장은 바로 보였지만, 빠지기 전까지 빈 번호가 X 로 보였다.
+ * 지금은 처음 몇 장이 열리는 대로 바로 보이고, 목록이 읽는 동안 뒤로 늘어난다.
  */
 
 /** 묶음마다 항목을 만든다. 아직 열리는지 모른다. */
@@ -284,37 +288,53 @@ export function itemsFromGroups(groups: string[][], names: string[] = []): Image
 }
 
 /**
- * 묶음마다 앞에서부터 CONCURRENCY 장씩 열어 보고, 안 열리는 것을 remove 로 뺀다.
- * 한 묶음 안에서 연속 STOP_AFTER 장이 안 열리면 그 묶음의 나머지는 열어 보지 않고 통째로 뺀다
- * (범위를 넉넉히 잡은 회차의 뒤쪽 빈 번호).
+ * 묶음마다 앞에서부터 CONCURRENCY 장씩 열어 보고, 열린 것을 add 로 넣는다.
+ *
+ * 범위는 **끝까지** 본다. 예전에는 연속 5장이 안 열리면 그 묶음의 나머지를 통째로 뺐는데,
+ * 1..200 에서 41~45 가 비어 있거나 서버가 잠깐 막기만 해도 46~120 의 멀쩡한 그림이 사라졌다.
+ * 안 열린 주소는 잠깐 쉬었다가 한 번 더 본다 — 요청 제한·타임아웃으로 한 번 실패한 것을 404 와
+ * 구분하려고. 다시 보기는 앞에서 열어 보는 동안 뒤에서 따로 돌고, 그때 열린 것은 늦게 들어오므로
+ * add 는 **순서(rank) 자리에 끼워 넣어야** 한다(ImageProvider insertImages).
+ * alive() 가 false 면(비우기 등) 그만둔다.
  * 볼 때 브라우저가 같은 주소를 다시 받지 않는다 — 여기서 받은 것이 캐시에 남는다.
  */
-export async function pruneMissing(
+export async function loadOpening(
     groups: ImageItem[][],
-    remove: (ids: string[]) => void,
+    add: (items: ImageItem[]) => void,
+    alive: () => boolean = () => true,
 ): Promise<{ kept: number; dropped: number }> {
     let kept = 0, dropped = 0;
+    let retries = Promise.resolve();
+
+    const retry = (failed: ImageItem[]) => {
+        const due = Date.now() + RETRY_DELAY_MS;
+        retries = retries.then(async () => {
+            const wait = due - Date.now();
+            if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+            const back: ImageItem[] = [];
+            for (const it of failed) {
+                if (!alive()) return;
+                if (await probe(it.url)) back.push(it);
+                else dropped++;
+            }
+            kept += back.length;
+            if (back.length && alive()) add(back);
+        });
+    };
 
     for (const items of groups) {
-        let misses = 0;
-        let i = 0;
-        for (; i < items.length && misses < STOP_AFTER; i += CONCURRENCY) {
+        for (let i = 0; i < items.length; i += CONCURRENCY) {
+            if (!alive()) return { kept, dropped };
             const batch = items.slice(i, i + CONCURRENCY);
             const ok = await Promise.all(batch.map((it) => probe(it.url)));
-
-            // 순서대로 세어야 「연속」 이 맞는다. 끊긴 뒤에 열린 장은 버리지 않는다.
-            const gone: string[] = [];
-            batch.forEach((it, k) => {
-                if (ok[k]) { kept++; misses = 0; }
-                else { gone.push(it.id); misses++; }
-            });
-            dropped += gone.length;
-            remove(gone);
+            const opened = batch.filter((_, k) => ok[k]);
+            const failed = batch.filter((_, k) => !ok[k]);
+            kept += opened.length;
+            if (opened.length && alive()) add(opened);
+            if (failed.length) retry(failed);
         }
-        // 빈 번호가 이어져 멈췄으면 나머지는 없는 셈.
-        const rest = items.slice(i).map((it) => it.id);
-        dropped += rest.length;
-        remove(rest);
     }
+
+    await retries;
     return { kept, dropped };
 }

@@ -2,7 +2,7 @@
 
 import { useImages } from "@/app/(Context)/ImageProvider";
 import { useLang } from "@/i18n/EditorLang"
-import { buildTemplateGroups, Cond, countConds, itemsFromGroups, MAX_COUNT, parseValues, pruneMissing, STOP_AFTER, templateGroupNames } from "@/app/(Tools)/UrlSequence";
+import { buildTemplateGroups, Cond, countConds, itemsFromGroups, loadOpening, MAX_COUNT, parseValues, templateGroupNames } from "@/app/(Tools)/UrlSequence";
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
@@ -200,7 +200,7 @@ const freshName = (cols: Column[]) => {
 const decode = (u: string) => { try { return decodeURI(u); } catch { return u; } };
 
 export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: string) => void }) {
-    const { addImages, removeImages } = useImages();
+    const { insertImages, clearCount } = useImages();
     const { t } = useLang();
 
     const [cols, setCols] = useState<Column[]>([{ id: nextId++, name: "{1}", text: "" }]);
@@ -262,21 +262,23 @@ export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: 
 
     const linkPath = () => sharePath(template.trim(), used.map(({ name, text }) => ({ name, text })));
 
-    // 바로 넣고 패널을 닫는다. 안 열리는 번호는 뒤에서 빠진다(UrlSequence 의 「먼저 넣고, 뒤에서 뺀다」).
+    // 패널을 바로 닫고, 열리는 장만 열리는 대로 넣는다(UrlSequence loadOpening). 비우면 그만둔다.
     const load = () => {
         if (groups.length === 0) return;
         const perGroup = itemsFromGroups(groups, groupNames);
-        const added = perGroup.reduce((n, g) => n + g.length, 0);
-        addImages(perGroup.flat());
+        const rank = new Map(perGroup.flat().map((it, i) => [it.id, i]));
+        const rankOf = (id: string) => rank.get(id);
+        const started = clearCount();
+        const added = rank.size;
         history.replaceState(history.state, "", linkPath());   // 주소창 = 공유 링크
         setStatus(t.added(added));
         let host = "";
         try { host = new URL(url).hostname; } catch { /* groups 가 있으면 주소는 맞다 */ }
         onLoaded?.(location.origin + linkPath(), groupNames[0] || host);   // 메뉴 패널을 닫고, 바로가기 링크를 넘긴다
-        pruneMissing(perGroup, removeImages).then(({ kept, dropped }) => setStatus(
-            kept === 0 ? t.noneOpened
-            : t.kept(kept, dropped)
-        ));
+        loadOpening(perGroup, (items) => insertImages(items, rankOf), () => clearCount() === started).then(({ kept, dropped }) => {
+            if (clearCount() !== started) return;   // 비웠으면 결과를 알릴 것도 없다
+            setStatus(kept === 0 ? t.noneOpened : t.kept(kept, dropped));
+        });
     };
     const handleLoad = (e: React.FormEvent) => { e.preventDefault(); load(); };
 
@@ -315,7 +317,7 @@ export default function UrlBar({ onLoaded }: { onLoaded?: (link: string, title: 
         || problem
         || (total > MAX_COUNT && t.tooMany(total, MAX_COUNT))
         || (!template && t.intro)
-        || (groups.length > 1 && t.summaryGroups(total, groups.length, STOP_AFTER))
+        || (groups.length > 1 && t.summaryGroups(total, groups.length))
         || (groups.length === 1 && t.count(total))
         || "";
 

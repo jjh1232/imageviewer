@@ -66,7 +66,7 @@ export type EditorDict = {
     needHttp: string;
     intro: string;
     tooMany: (total: number, max: number) => string;
-    summaryGroups: (total: number, groups: number, stop: number) => string;
+    summaryGroups: (total: number, groups: number) => string;
     example: string;
     added: (n: number) => string;
     noneOpened: string;
@@ -137,9 +137,9 @@ const ko: EditorDict = {
     needHttp: "http 로 시작하는 이미지 주소를 넣으세요.",
     intro: "바뀌는 부분마다 칸을 만들고, 주소의 그 자리에 칸 이름을 적으세요.",
     tooMany: (total, max) => `${total}장 — 한 번에 ${max}장까지입니다.`,
-    summaryGroups: (total, groups, stop) => `${total}장 · ${groups}묶음 · 묶음마다 연속 ${stop}장이 없으면 다음으로`,
+    summaryGroups: (total, groups) => `${total}장 · ${groups}묶음`,
     example: "예",
-    added: (n) => `${n}장 넣음 · 안 열리는 번호를 빼는 중…`,
+    added: (n) => `${n}장 확인 중 · 열리는 것부터 넣습니다…`,
     noneOpened: "열리는 이미지가 없습니다. 주소와 값을 확인하세요.",
     kept: (k, d) => `${k}장${d ? ` (안 열리는 번호 ${d}개 뺌)` : ""}`,
     badLink: "링크의 주소를 읽지 못했습니다.",
@@ -211,9 +211,9 @@ const en: EditorDict = {
     needHttp: "Enter an image URL starting with http.",
     intro: "Make a slot for each part that changes, then type the slot name at that spot in the URL.",
     tooMany: (total, max) => `${total} images — up to ${max} at a time.`,
-    summaryGroups: (total, groups, stop) => `${total} images · ${groups} groups · each group stops after ${stop} missing in a row`,
+    summaryGroups: (total, groups) => `${total} images · ${groups} groups`,
     example: "e.g.",
-    added: (n) => `Added ${n} · removing numbers that don't open…`,
+    added: (n) => `Checking ${n} · adding the ones that open…`,
     noneOpened: "None of the images opened. Check the URL and values.",
     kept: (k, d) => `${k === 1 ? "1 image" : `${k} images`}${d ? ` (${d} that didn't open removed)` : ""}`,
     badLink: "Couldn't read the URL in this link.",
@@ -285,9 +285,9 @@ const ja: EditorDict = {
     needHttp: "http で始まる画像URLを入れてください。",
     intro: "変わる部分ごとに枠を作り、URLのその位置に枠の名前を書いてください。",
     tooMany: (total, max) => `${total}枚 — 一度に${max}枚までです。`,
-    summaryGroups: (total, groups, stop) => `${total}枚 · ${groups}グループ · 連続${stop}枚なければ次のグループへ`,
+    summaryGroups: (total, groups) => `${total}枚 · ${groups}グループ`,
     example: "例",
-    added: (n) => `${n}枚追加 · 開けない番号を外しています…`,
+    added: (n) => `${n}枚を確認中 · 開けたものから追加します…`,
     noneOpened: "開ける画像がありません。URLと値を確認してください。",
     kept: (k, d) => `${k}枚${d ? `(開けない番号 ${d}個を除外)` : ""}`,
     badLink: "リンクのURLを読み取れませんでした。",
